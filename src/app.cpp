@@ -65,6 +65,9 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    printf("ServerUrl: %s; PlayerKey: %s\n", url.c_str(), playerKey.c_str());
+    fflush(stdout);
+
     Protocol::init();
     Cleanup cleanupProtocol([](){ Protocol::cleanup(); });
 
@@ -78,6 +81,8 @@ int main(int argc, char *argv[])
         fprintf(stderr, "%s\n", msg.c_str());
         return 1;
     }
+
+    fprintf(stderr, "Success\n");
 
     if (verbose)
     {
