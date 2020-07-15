@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
     }
 
     fprintf(stderr, "Success\n");
+    fprintf(stderr, "Response size: %" PRIuZ "\n", response.size());
 
     if (verbose)
     {

@@ -34,8 +34,7 @@ namespace Protocol
     }
 
     bool makeRequest(const string& url,
-                     const vector<pair<string, string>>* pQueryData,
-                     bool usePost,
+                     const string& request,
                      string* pResponse,
                      string* pMsg)
     {
@@ -49,59 +48,23 @@ namespace Protocol
         }
         Cleanup cleanupCurl([&](){ curl_easy_cleanup(curl); });
 
-        string queryStr;
-        if (pQueryData)
-        {
-            bool first = true;
-            for (auto& queryItem : *pQueryData)
-            {
-                if (first)
-                {
-                    first = false;
-                }
-                else
-                {
-                    queryStr += '&';
-                }
-
-                {
-                    char* key = curl_easy_escape(curl, queryItem.first.c_str(), queryItem.first.size());
-                    queryStr += key;
-                    curl_free(key);
-                }
-
-                queryStr += '=';
-
-                {
-                    char* value = curl_easy_escape(curl, queryItem.second.c_str(), queryItem.second.size());
-                    queryStr += value;
-                    curl_free(value);
-                }
-            }
-        }
-
-        string fullUrl = url;
-        if (usePost)
-        {
-            curl_easy_setopt(curl, CURLOPT_POST, 1L);
-            curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS, queryStr.c_str());
-        }
-        else
-        {
-            fullUrl += '?';
-            fullUrl += queryStr;
-        }
+        struct curl_slist *headers = nullptr;
+        headers = curl_slist_append(headers, "Content-Type: text/plain");
+        Cleanup cleanupHeaders([&](){ curl_slist_free_all(headers); });
 
         char errorBuf[CURL_ERROR_SIZE];
 
-        curl_easy_setopt(curl, CURLOPT_URL, fullUrl.c_str());
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeFunction);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&strResponse);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
         curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 10L);
         curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuf);
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS, request.c_str());
 
         errorBuf[0] = 0;
 
@@ -159,11 +122,8 @@ namespace Protocol
               string* pResponse,
               string* pMsg)
     {
-        vector<pair<string, string>> queryData;
-        queryData.emplace_back("playerKey", playerKey);
         if (!makeRequest(url,
-                         &queryData,
-                         false,
+                         playerKey,
                          pResponse,
                          pMsg))
         {
