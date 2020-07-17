@@ -73,7 +73,7 @@ endif
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-LDLIBS =
+LDLIBS = -lgmpxx -lgmp
 LDLIBS += $(LDLIBS_$(PLATFORM))
 LDLIBS += $(LDLIBS_$(patsubst %$(EXE),%,$@))
 LDLIBS += $(LDLIBS_$(PLATFORM)_$(patsubst %$(EXE),%,$@))
@@ -82,7 +82,7 @@ LDLIBS_test +=
 LDLIBS_linux_test +=
 LDLIBS_app += -lcurl
 STDOBJS =
-ALLPROGS = app
+ALLPROGS = app desugar run disas
 ALLPROGS += $(ALLPROGS_$(PLATFORM))
 ALLPROGS_linux +=
 
@@ -92,6 +92,9 @@ ALLPROGS_EXE = $(patsubst %,%$(EXE),$(ALLPROGS))
 all: $(ALLPROGS_EXE)
 
 app$(EXE): app.o StringUtils.o Protocol.o
+desugar$(EXE): desugar.o StringUtils.o FileUtils.o TokenText.o ParseExpr.o VisitExpr.o DesugarExpr.o FormatExpr.o
+run$(EXE): run.o StringUtils.o FileUtils.o TokenText.o ParseExpr.o VisitExpr.o DesugarExpr.o OptimizeExpr.o ParseCode.o EvalCode.o Heap.o
+disas$(EXE): disas.o StringUtils.o FileUtils.o TokenText.o ParseExpr.o VisitExpr.o DesugarExpr.o OptimizeExpr.o ParseCode.o
 
 .PHONY: clean
 clean:

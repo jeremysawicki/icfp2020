@@ -2,3 +2,6 @@
 *.d
 *.exe
 app
+desugar
+run
+disas
