@@ -2,6 +2,7 @@
 *.d
 *.exe
 app
+send
 desugar
 run
 disas

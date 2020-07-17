@@ -1,6 +1,7 @@
 #include "Protocol.hpp"
 #include "Cleanup.hpp"
 #include "StringUtils.hpp"
+#include "FileUtils.hpp"
 #include <curl/curl.h>
 
 // sudo apt-get install libcurl4-openssl-dev
@@ -117,6 +118,56 @@ namespace Protocol
         return true;
     }
 
+    bool getAPIKey(string* pKey)
+    {
+        string tmpKey;
+        if (!readFile("../../../apikey.txt", &tmpKey))
+        {
+            return false;
+        }
+
+        string key;
+        for (char ch : tmpKey)
+        {
+            if (ch >= 33 && ch <= 126)
+            {
+                key.push_back(ch);
+            }
+        }
+        if (key.empty())
+        {
+            return false;
+        }
+
+        if (pKey) *pKey = std::move(key);
+        return true;
+    }
+
+    bool makeAPIRequest(const string& url,
+                        const string& request,
+                        string* pResponse,
+                        string* pMsg)
+    {
+        string key;
+        if (!getAPIKey(&key))
+        {
+            if (pMsg) *pMsg = "Error reading API key";
+            return false;
+        }
+
+        string fullUrl = url + "?apiKey=" + key;
+
+        if (!makeRequest(fullUrl,
+                         request,
+                         pResponse,
+                         pMsg))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     bool test(const string& url,
               const string& playerKey,
               string* pResponse,
@@ -126,6 +177,23 @@ namespace Protocol
                          playerKey,
                          pResponse,
                          pMsg))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool send(const string& request,
+              string* pResponse,
+              string* pMsg)
+    {
+        string url = "https://icfpc2020-api.testkontur.ru/aliens/send";
+
+        if (!makeAPIRequest(url,
+                            request,
+                            pResponse,
+                            pMsg))
         {
             return false;
         }

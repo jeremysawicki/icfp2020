@@ -81,8 +81,9 @@ LDLIBS_linux +=
 LDLIBS_test +=
 LDLIBS_linux_test +=
 LDLIBS_app += -lcurl
+LDLIBS_send += -lcurl
 STDOBJS =
-ALLPROGS = app desugar run disas
+ALLPROGS = app send desugar run disas
 ALLPROGS += $(ALLPROGS_$(PLATFORM))
 ALLPROGS_linux +=
 
@@ -91,7 +92,8 @@ ALLPROGS_EXE = $(patsubst %,%$(EXE),$(ALLPROGS))
 .PHONY: all
 all: $(ALLPROGS_EXE)
 
-app$(EXE): app.o StringUtils.o Protocol.o
+app$(EXE): app.o StringUtils.o FileUtils.o Protocol.o
+send$(EXE): send.o StringUtils.o FileUtils.o Protocol.o
 desugar$(EXE): desugar.o StringUtils.o FileUtils.o TokenText.o ParseExpr.o VisitExpr.o DesugarExpr.o FormatExpr.o
 run$(EXE): run.o StringUtils.o FileUtils.o TokenText.o ParseExpr.o VisitExpr.o DesugarExpr.o OptimizeExpr.o ParseCode.o EvalCode.o Heap.o
 disas$(EXE): disas.o StringUtils.o FileUtils.o TokenText.o ParseExpr.o VisitExpr.o DesugarExpr.o OptimizeExpr.o ParseCode.o

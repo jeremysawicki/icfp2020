@@ -12,6 +12,10 @@ namespace Protocol
               const std::string& playerKey,
               std::string* pResponse = nullptr,
               std::string* pMsg = nullptr);
+
+    bool send(const std::string& request,
+              std::string* pResponse = nullptr,
+              std::string* pMsg = nullptr);
 }
 
 #endif
