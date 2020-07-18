@@ -4,10 +4,16 @@
 #include "Common.hpp"
 
 class Token;
-class Expr;
+class Bindings;
+class Value;
 
 bool parseExpr(const std::vector<Token>& tokens,
-               std::unique_ptr<Expr>* ppExpr,
+               const Bindings& bindings,
+               Value& value,
                std::string* pMsg = nullptr);
+
+bool parseBindings(const std::vector<Token>& tokens,
+                   Bindings& bindings,
+                   std::string* pMsg = nullptr);
 
 #endif

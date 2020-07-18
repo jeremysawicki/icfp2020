@@ -2,14 +2,12 @@
 #include "FileUtils.hpp"
 #include "Token.hpp"
 #include "TokenText.hpp"
-#include "Expr.hpp"
+#include "SymTable.hpp"
 #include "ParseExpr.hpp"
-#include "DesugarExpr.hpp"
-#include "OptimizeExpr.hpp"
-#include "Code.hpp"
-#include "ParseCode.hpp"
+#include "Bindings.hpp"
 #include "Value.hpp"
-#include "EvalCode.hpp"
+#include "Eval.hpp"
+#include "PrintValue.hpp"
 
 using std::string;
 using std::vector;
@@ -17,21 +15,24 @@ using std::unique_ptr;
 
 void usage(FILE* f)
 {
-    fprintf(f, "Usage: run [<options>] [<infile>] [<arg>...]\n");
-    fprintf(f, "  <infile>\n");
-    fprintf(f, "        Input file (default: stdin)\n");
+    fprintf(f, "Usage: run [<options>] [<expression file>] [<arg>...]\n");
+    fprintf(f, "  <expression file>\n");
+    fprintf(f, "        Expression file (default: stdin)\n");
     fprintf(f, "  <arg>\n");
     fprintf(f, "        Function arguments\n");
     fprintf(f, "Options:\n");
     fprintf(f, "  -h    Print usage information and exit\n");
+    fprintf(f, "  -b <bindings file>\n");
+    fprintf(f, "        Load bindings from the specified file\n");
 }
 
 int main(int argc, char *argv[])
 {
-    bool gotInFile = false;
+    bool gotExprFile = false;
 
     bool help = false;
-    string inFile;
+    string exprFile;
+    vector<string> bindingsFiles;
     vector<string> args;
 
     int iArg = 1;
@@ -43,10 +44,20 @@ int main(int argc, char *argv[])
         {
             help = true;
         }
-        else if (!gotInFile)
+        else if (strArg == "-b")
         {
-            inFile = strArg;
-            gotInFile = true;
+            if (iArg >= argc)
+            {
+                usage(stderr);
+                return 1;
+            }
+            strArg = argv[iArg++];
+            bindingsFiles.push_back(strArg);
+        }
+        else if (!gotExprFile)
+        {
+            exprFile = strArg;
+            gotExprFile = true;
         }
         else
         {
@@ -60,19 +71,47 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    if (gotInFile && inFile == "-")
+    if (gotExprFile && exprFile == "-")
     {
-        gotInFile = false;
+        gotExprFile = false;
     }
 
     string msg;
 
+    SymTable symTable;
+    Bindings bindings;
+
+    for (auto& bindingsFile : bindingsFiles)
+    {
+        string text;
+        if (!readFile(bindingsFile, &text))
+        {
+            fprintf(stderr, "Error reading bindings\n");
+            return 1;
+        }
+
+        vector<Token> tokens;
+        if (!parseTokenText(symTable, text, &tokens, &msg))
+        {
+            fprintf(stderr, "%s\n", msg.c_str());
+            return 1;
+        }
+
+        bindings.resize(symTable.size());
+
+        if (!parseBindings(tokens, bindings, &msg))
+        {
+            fprintf(stderr, "%s\n", msg.c_str());
+            return 1;
+        }
+    }
+
     string text;
-    if (!(gotInFile ?
-          readFile(inFile, &text) :
+    if (!(gotExprFile ?
+          readFile(exprFile, &text) :
           readFile(stdin, &text)))
     {
-        fprintf(stderr, "Error reading input\n");
+        fprintf(stderr, "Error reading expression\n");
         return 1;
     }
 
@@ -88,61 +127,36 @@ int main(int argc, char *argv[])
     }
 
     vector<Token> tokens;
-    if (!parseTokenText(text, &tokens, &msg))
+    if (!parseTokenText(symTable, text, &tokens, &msg))
     {
         fprintf(stderr, "%s\n", msg.c_str());
         return 1;
     }
 
-    unique_ptr<Expr> pExpr;
-    if (!parseExpr(tokens, &pExpr, &msg))
-    {
-        fprintf(stderr, "%s\n", msg.c_str());
-        return 1;
-    }
-
-    if (!desugarExpr(pExpr, &msg))
-    {
-        fprintf(stderr, "%s\n", msg.c_str());
-        return 1;
-    }
-
-    if (!optimizeExpr(pExpr, &msg))
-    {
-        fprintf(stderr, "%s\n", msg.c_str());
-        return 1;
-    }
-
-    Code code;
-    if (!parseCode(pExpr, &code, &msg))
-    {
-        printf("%s\n", msg.c_str());
-        return 1;
-    }
+    //bindings.resize(symTable.size());
 
     Value value;
-    if (!evalCode(code, &value, &msg))
+    if (!parseExpr(tokens, bindings, value, &msg))
+    {
+        fprintf(stderr, "%s\n", msg.c_str());
+        return 1;
+    }
+
+#if 0
+    if (!eval(value, &msg))
     {
         printf("%s\n", msg.c_str());
         return 1;
     }
+#endif
 
-    if (value.m_valueType == ValueType::Integer)
+    if (!printValue(value, true, &msg))
     {
-        printf("%s\n", Int::format(value.m_integerData.m_value).c_str());
+        printf("\n");
+        printf("%s\n", msg.c_str());
+        return 1;
     }
-    else if (value.m_valueType == ValueType::Boolean)
-    {
-        printf("%s\n", value.m_booleanData.m_value ? "true" : "false");
-    }
-    else if (value.m_valueType == ValueType::Closure)
-    {
-        printf("<closure>\n");
-    }
-    else
-    {
-        printf("<unknown type>\n");
-    }
+    printf("\n");
 
     return 0;
 }

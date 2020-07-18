@@ -4,8 +4,8 @@
 #include "Common.hpp"
 #include <limits>
 
-#define INT_IMPL_32 1
-#define INT_IMPL_64 0
+#define INT_IMPL_32 0
+#define INT_IMPL_64 1
 #define INT_IMPL_GMP 0
 
 #define INT_CHECK_OVERFLOW 1
@@ -218,6 +218,12 @@ public:
         return true;
     }
 
+    static bool getValue(const BasicInt& a, int64_t* pValue, std::string* pMsg)
+    {
+        *pValue = a.m_value;
+        return true;
+    }
+
 private:
     T m_value;
 };
@@ -342,6 +348,17 @@ public:
             return true;
         }
         *pInRange = true;
+        return true;
+    }
+
+    static bool getValue(const GmpInt& a, int64_t* pValue, std::string* pMsg)
+    {
+        if (!a.m_value.fits_slong_p())
+        {
+            if (pMsg) *pMsg = "Integer conversion overflow";
+            return false;
+        }
+        *pValue = (int64_t)a.m_value.get_si();
         return true;
     }
 

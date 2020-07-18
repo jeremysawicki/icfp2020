@@ -1,10 +1,10 @@
 #include "ParseExpr.hpp"
 #include "Token.hpp"
-#include "Expr.hpp"
+#include "Bindings.hpp"
+#include "Value.hpp"
 
 using std::string;
 using std::vector;
-using std::unique_ptr;
 
 #define DEBUG 0
 
@@ -12,7 +12,8 @@ namespace
 {
     bool parseExprImpl(const vector<Token>& tokens,
                        size_t& pos,
-                       unique_ptr<Expr>& pExpr,
+                       const Bindings& bindings,
+                       Value& value,
                        string* pMsg)
     {
 #if DEBUG
@@ -26,7 +27,6 @@ namespace
         }
 
         auto& token = tokens[pos++];
-        pExpr.reset(new Expr);
 
         switch (token.m_tokenType)
         {
@@ -35,11 +35,14 @@ namespace
 #if DEBUG
             printf("%" PRIuZ ": TokenType::Apply\n", pos - 1);
 #endif
-            pExpr->setExprType(ExprType::Apply);
+            value->setValueType(ValueType::Apply);
+            value->m_applyData.m_funcValue.init();
+            value->m_applyData.m_argValue.init();
 
             if (!parseExprImpl(tokens,
                                pos,
-                               pExpr->m_applyData.m_funcExpr,
+                               bindings,
+                               value->m_applyData.m_funcValue,
                                pMsg))
             {
                 return false;
@@ -47,122 +50,8 @@ namespace
 
             if (!parseExprImpl(tokens,
                                pos,
-                               pExpr->m_applyData.m_argExpr,
-                               pMsg))
-            {
-                return false;
-            }
-
-            break;
-        }
-        case TokenType::Lambda:
-        {
-#if DEBUG
-            printf("%" PRIuZ ": TokenType::Lambda\n", pos - 1);
-#endif
-            pExpr->setExprType(ExprType::Lambda);
-
-            if (pos >= size)
-            {
-                if (pMsg) *pMsg = "Unexpected end of input";
-                return false;
-            }
-
-            auto& varToken = tokens[pos++];
-            if (varToken.m_tokenType != TokenType::Variable)
-            {
-                if (pMsg) *pMsg = "Expected variable after lambda";
-                return false;
-            }
-
-            pExpr->m_lambdaData.m_varId = varToken.m_variableData.m_varId;
-
-            if (!parseExprImpl(tokens,
-                               pos,
-                               pExpr->m_lambdaData.m_bodyExpr,
-                               pMsg))
-            {
-                return false;
-            }
-
-            break;
-        }
-        case TokenType::If:
-        {
-#if DEBUG
-            printf("%" PRIuZ ": TokenType::If\n", pos - 1);
-#endif
-            pExpr->setExprType(ExprType::If);
-
-            if (!parseExprImpl(tokens,
-                               pos,
-                               pExpr->m_ifData.m_condExpr,
-                               pMsg))
-            {
-                return false;
-            }
-
-            if (!parseExprImpl(tokens,
-                               pos,
-                               pExpr->m_ifData.m_trueExpr,
-                               pMsg))
-            {
-                return false;
-            }
-
-            if (!parseExprImpl(tokens,
-                               pos,
-                               pExpr->m_ifData.m_falseExpr,
-                               pMsg))
-            {
-                return false;
-            }
-
-            break;
-        }
-        case TokenType::And:
-        {
-#if DEBUG
-            printf("%" PRIuZ ": TokenType::And\n", pos - 1);
-#endif
-            pExpr->setExprType(ExprType::And);
-
-            if (!parseExprImpl(tokens,
-                               pos,
-                               pExpr->m_andData.m_exprA,
-                               pMsg))
-            {
-                return false;
-            }
-
-            if (!parseExprImpl(tokens,
-                               pos,
-                               pExpr->m_andData.m_exprB,
-                               pMsg))
-            {
-                return false;
-            }
-
-            break;
-        }
-        case TokenType::Or:
-        {
-#if DEBUG
-            printf("%" PRIuZ ": TokenType::Or\n", pos - 1);
-#endif
-            pExpr->setExprType(ExprType::Or);
-
-            if (!parseExprImpl(tokens,
-                               pos,
-                               pExpr->m_orData.m_exprA,
-                               pMsg))
-            {
-                return false;
-            }
-
-            if (!parseExprImpl(tokens,
-                               pos,
-                               pExpr->m_orData.m_exprB,
+                               bindings,
+                               value->m_applyData.m_argValue,
                                pMsg))
             {
                 return false;
@@ -175,26 +64,22 @@ namespace
 #if DEBUG
             printf("%" PRIuZ ": TokenType::Integer\n", pos - 1);
 #endif
-            pExpr->setExprType(ExprType::Integer);
-            pExpr->m_integerData.m_value = token.m_integerData.m_value;
+            value->setValueType(ValueType::Integer);
+            value->m_integerData.m_value = token.m_integerData.m_value;
             break;
         }
-        case TokenType::Boolean:
+        case TokenType::Symbol:
         {
 #if DEBUG
-            printf("%" PRIuZ ": TokenType::Boolean\n", pos - 1);
+            printf("%" PRIuZ ": TokenType::Symbol\n", pos - 1);
 #endif
-            pExpr->setExprType(ExprType::Boolean);
-            pExpr->m_booleanData.m_value = token.m_booleanData.m_value;
-            break;
-        }
-        case TokenType::Variable:
-        {
-#if DEBUG
-            printf("%" PRIuZ ": TokenType::Variable\n", pos - 1);
-#endif
-            pExpr->setExprType(ExprType::Variable);
-            pExpr->m_variableData.m_varId = token.m_variableData.m_varId;
+            uint32_t symId = token.m_symbolData.m_symId;
+            if (symId >= bindings.m_values.size())
+            {
+                if (pMsg) *pMsg = "Symbol out of range";
+                return false;
+            }
+            value = bindings.m_values[symId];
             break;
         }
         case TokenType::Function:
@@ -202,64 +87,10 @@ namespace
 #if DEBUG
             printf("%" PRIuZ ": TokenType::Function\n", pos - 1);
 #endif
-            pExpr->setExprType(ExprType::Function);
-            pExpr->m_functionData.m_func = token.m_functionData.m_func;
-            break;
-        }
-        case TokenType::Let:
-        {
-#if DEBUG
-            printf("%" PRIuZ ": TokenType::Let\n", pos - 1);
-#endif
-            pExpr->setExprType(ExprType::Let);
-
-            while (true)
-            {
-                if (pos >= size)
-                {
-                    if (pMsg) *pMsg = "Unexpected end of input";
-                    return false;
-                }
-
-                auto& varToken = tokens[pos++];
-                if (varToken.m_tokenType == TokenType::Variable)
-                {
-                    uint32_t varId = varToken.m_variableData.m_varId;
-                    pExpr->m_letData.m_varIds.push_back(varId);
-                }
-                else if (varToken.m_tokenType == TokenType::Assign)
-                {
-                    break;
-                }
-                else
-                {
-                    if (pMsg) *pMsg = "Expected variable or = in let";
-                    return false;
-                }
-            }
-
-            if (pExpr->m_letData.m_varIds.empty())
-            {
-                if (pMsg) *pMsg = "Expected variable in let";
-                return false;
-            }
-
-            if (!parseExprImpl(tokens,
-                               pos,
-                               pExpr->m_letData.m_valExpr,
-                               pMsg))
-            {
-                return false;
-            }
-
-            if (!parseExprImpl(tokens,
-                               pos,
-                               pExpr->m_letData.m_bodyExpr,
-                               pMsg))
-            {
-                return false;
-            }
-
+            value->setValueType(ValueType::Closure);
+            Function func = token.m_functionData.m_func;
+            if (func == Function::Vec) func = Function::Cons;
+            value->m_closureData.m_func = func;
             break;
         }
         case TokenType::Assign:
@@ -270,12 +101,19 @@ namespace
             if (pMsg) *pMsg = "Unexpected = token";
             return false;
         }
-        case TokenType::LParen:
+        case TokenType::LGroup:
         {
 #if DEBUG
-            printf("%" PRIuZ ": TokenType::LParen\n", pos - 1);
+            printf("%" PRIuZ ": TokenType::LGroup\n", pos - 1);
 #endif
-            pExpr->setExprType(ExprType::Paren);
+            if (!parseExprImpl(tokens,
+                               pos,
+                               bindings,
+                               value,
+                               pMsg))
+            {
+                return false;
+            }
 
             while (true)
             {
@@ -285,27 +123,100 @@ namespace
                     return false;
                 }
 
-                if (tokens[pos].m_tokenType == TokenType::RParen)
+                if (tokens[pos].m_tokenType == TokenType::RGroup)
                 {
                     pos++;
                     break;
                 }
 
-                auto& pSubExpr = pExpr->m_parenData.m_subExprs.emplace_back();
+                Value applyValue;
+                applyValue.init(ValueType::Apply);
+                applyValue->m_applyData.m_funcValue = value;
+                applyValue->m_applyData.m_argValue.init();
                 if (!parseExprImpl(tokens,
                                    pos,
-                                   pSubExpr,
+                                   bindings,
+                                   applyValue->m_applyData.m_argValue,
                                    pMsg))
                 {
                     return false;
                 }
+                value = applyValue;
             }
 
-            if (pExpr->m_parenData.m_subExprs.empty())
+            break;
+        }
+        case TokenType::RGroup:
+        {
+#if DEBUG
+            printf("%" PRIuZ ": TokenType::RGroup\n", pos - 1);
+#endif
+            if (pMsg) *pMsg = "Unexpected } token";
+            return false;
+        }
+        case TokenType::LParen:
+        {
+#if DEBUG
+            printf("%" PRIuZ ": TokenType::LParen\n", pos - 1);
+#endif
+            Value tailValue = value;
+
+            if (pos >= size)
             {
-                if (pMsg) *pMsg = "Expected subexpression in ()";
+                if (pMsg) *pMsg = "Unexpected end of input";
                 return false;
             }
+
+            if (tokens[pos].m_tokenType == TokenType::RParen)
+            {
+                pos++;
+            }
+            else
+            {
+                while (true)
+                {
+                    tailValue->setValueType(ValueType::Closure);
+                    tailValue->m_closureData.m_func = Function::Cons;
+                    tailValue->m_closureData.m_size = 2;
+                    tailValue->m_closureData.m_args[0].init();
+                    tailValue->m_closureData.m_args[1].init();
+
+                    if (!parseExprImpl(tokens,
+                                       pos,
+                                       bindings,
+                                       tailValue->m_closureData.m_args[0],
+                                       pMsg))
+                    {
+                        return false;
+                    }
+
+                    tailValue = tailValue->m_closureData.m_args[1];
+
+                    if (pos >= size)
+                    {
+                        if (pMsg) *pMsg = "Unexpected end of input";
+                        return false;
+                    }
+
+                    if (tokens[pos].m_tokenType == TokenType::RParen)
+                    {
+                        pos++;
+                        break;
+                    }
+                    else if (tokens[pos].m_tokenType == TokenType::Comma)
+                    {
+                        pos++;
+                    }
+                    else
+                    {
+                        if (pMsg) *pMsg = "Expected , or )";
+                        return false;
+                    }
+                }
+            }
+
+            tailValue->setValueType(ValueType::Closure);
+            tailValue->m_closureData.m_func = Function::Nil;
 
             break;
         }
@@ -316,6 +227,23 @@ namespace
 #endif
             if (pMsg) *pMsg = "Unexpected ) token";
             return false;
+        }
+        case TokenType::Comma:
+        {
+#if DEBUG
+            printf("%" PRIuZ ": TokenType::Comma\n", pos - 1);
+#endif
+            if (pMsg) *pMsg = "Unexpected , token";
+            return false;
+        }
+        case TokenType::Signal:
+        {
+#if DEBUG
+            printf("%" PRIuZ ": TokenType::Signal\n", pos - 1);
+#endif
+            value->setValueType(ValueType::Signal);
+            value->m_signalData.m_signal = token.m_signalData.m_signal;
+            break;
         }
         default:
         {
@@ -332,14 +260,16 @@ namespace
 }
 
 bool parseExpr(const vector<Token>& tokens,
-               unique_ptr<Expr>* ppExpr,
+               const Bindings& bindings,
+               Value& value,
                string* pMsg)
 {
     size_t pos = 0;
-    unique_ptr<Expr> pExpr;
+    value.init();
     if (!parseExprImpl(tokens,
                        pos,
-                       pExpr,
+                       bindings,
+                       value,
                        pMsg))
     {
         return false;
@@ -351,6 +281,62 @@ bool parseExpr(const vector<Token>& tokens,
         return false;
     }
 
-    if (ppExpr) *ppExpr = std::move(pExpr);
+    return true;
+}
+
+bool parseBindings(const vector<Token>& tokens,
+                   Bindings& bindings,
+                   string* pMsg)
+{
+    size_t pos = 0;
+    size_t size = tokens.size();
+    while (pos < size)
+    {
+        auto& symToken = tokens[pos++];
+        if (symToken.m_tokenType != TokenType::Symbol)
+        {
+            if (pMsg) *pMsg = "Expected symbol";
+            return false;
+        }
+
+        uint32_t symId = symToken.m_symbolData.m_symId;
+
+        if (symId >= bindings.m_values.size())
+        {
+            if (pMsg) *pMsg = "Symbol out of range";
+            return false;
+        }
+
+        if (bindings.m_values[symId]->m_valueType != ValueType::Invalid)
+        {
+            if (pMsg) *pMsg = "Duplicate binding";
+            return false;
+        }
+
+        bindings.m_order.push_back(symId);
+
+        if (pos >= size)
+        {
+            if (pMsg) *pMsg = "Unexpected end of input";
+            return false;
+        }
+
+        auto& assignToken = tokens[pos++];
+        if (assignToken.m_tokenType != TokenType::Assign)
+        {
+            if (pMsg) *pMsg = "Expected =";
+            return false;
+        }
+
+        if (!parseExprImpl(tokens,
+                           pos,
+                           bindings,
+                           bindings.m_values[symId],
+                           pMsg))
+        {
+            return false;
+        }
+    }
+
     return true;
 }

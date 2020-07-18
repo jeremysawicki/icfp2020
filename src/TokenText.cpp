@@ -2,11 +2,10 @@
 #include "Token.hpp"
 #include "Function.hpp"
 #include "StringUtils.hpp"
-#include <unordered_map>
+#include "SymTable.hpp"
 
 using std::string;
 using std::vector;
-using std::unordered_map;
 using std::pair;
 
 namespace
@@ -15,25 +14,39 @@ namespace
     {
         BeforeToken,
         AfterToken,
-        InToken
+        InToken,
+        InSignal
     };
 
     constexpr pair<const char*, Function> funcIndex[] =
     {
         { "inc", Function::Inc },
         { "dec", Function::Dec },
-        { "neg", Function::Neg },
-        { "not", Function::Not },
         { "add", Function::Add },
-        { "sub", Function::Sub },
         { "mul", Function::Mul },
         { "div", Function::Div },
         { "eq", Function::Eq },
-        { "ne", Function::Ne },
         { "lt", Function::Lt },
-        { "gt", Function::Gt },
-        { "le", Function::Le },
-        { "ge", Function::Ge }
+        { "mod", Function::Modulate },
+        { "dem", Function::Demodulate },
+        { "send", Function::Send },
+        { "neg", Function::Neg },
+        { "s", Function::S },
+        { "c", Function::C },
+        { "b", Function::B },
+        { "t", Function::True },
+        { "f", Function::False },
+        { "i", Function::I },
+        { "cons", Function::Cons },
+        { "car", Function::Car },
+        { "cdr", Function::Cdr },
+        { "nil", Function::Nil },
+        { "isnil", Function::IsNil },
+        { "vec", Function::Vec },
+        { "draw", Function::Draw },
+        { "chkb", Function::Checkerboard },
+        { "multipledraw", Function::MultipleDraw },
+        { "if0", Function::If0 },
     };
 
     bool parseFunction(const string& str, Function* pFunc)
@@ -63,17 +76,14 @@ namespace
     }
 }
 
-bool parseTokenText(const string& text,
+bool parseTokenText(SymTable& symTable,
+                    const string& text,
                     vector<Token>* pTokens,
                     string* pMsg)
 {
     ParseState state = ParseState::BeforeToken;
     string str;
     vector<Token> tokens;
-    unordered_map<string, uint32_t> varNameToIdx;
-    vector<string> varIdxToName;
-    unordered_map<uint32_t, uint32_t> varIdToIdx;
-    vector<uint32_t> varIdxToId;
 
     size_t size = text.size();
     for (size_t pos = 0; pos <= size; pos++)
@@ -87,10 +97,35 @@ bool parseTokenText(const string& text,
             ch == '\v';
         bool isNormal =
             (ch >= 33 && ch <= 126) &&
-            ch != '\\' &&
             ch != '$' &&
+            ch != '{' &&
+            ch != '}' &&
             ch != '(' &&
-            ch != ')';
+            ch != ')' &&
+            ch != ',' &&
+            ch != '"';
+
+        if (state == ParseState::InSignal)
+        {
+            if (ch == '"')
+            {
+                auto& token = tokens.emplace_back();
+                token.setTokenType(TokenType::Signal);
+                token.m_signalData.m_signal = str;
+                str.clear();
+                state = ParseState::AfterToken;
+            }
+            else if (ch == '0' || ch == '1')
+            {
+                str.push_back(ch);
+            }
+            else
+            {
+                if (pMsg) *pMsg = "Bad character in signal";
+                return false;
+            }
+            continue;
+        }
 
         if (state == ParseState::InToken)
         {
@@ -114,47 +149,10 @@ bool parseTokenText(const string& text,
                 auto& token = tokens.emplace_back();
                 token.setTokenType(TokenType::Apply);
             }
-            else if (str == "lambda")
-            {
-                auto& token = tokens.emplace_back();
-                token.setTokenType(TokenType::Lambda);
-            }
-            else if (str == "if")
-            {
-                auto& token = tokens.emplace_back();
-                token.setTokenType(TokenType::If);
-            }
-            else if (str == "and")
-            {
-                auto& token = tokens.emplace_back();
-                token.setTokenType(TokenType::And);
-            }
-            else if (str == "or")
-            {
-                auto& token = tokens.emplace_back();
-                token.setTokenType(TokenType::Or);
-            }
-            else if (str == "let")
-            {
-                auto& token = tokens.emplace_back();
-                token.setTokenType(TokenType::Let);
-            }
             else if (str == "=")
             {
                 auto& token = tokens.emplace_back();
                 token.setTokenType(TokenType::Assign);
-            }
-            else if (str == "false")
-            {
-                auto& token = tokens.emplace_back();
-                token.setTokenType(TokenType::Boolean);
-                token.m_booleanData.m_value = false;
-            }
-            else if (str == "true")
-            {
-                auto& token = tokens.emplace_back();
-                token.setTokenType(TokenType::Boolean);
-                token.m_booleanData.m_value = true;
             }
             else if (Int::parse(str, &intInRange, &intValue))
             {
@@ -170,22 +168,10 @@ bool parseTokenText(const string& text,
             }
             else
             {
-                auto findIt = varNameToIdx.find(str);
-                uint32_t varId;
-                if (findIt != varNameToIdx.end())
-                {
-                    varId = findIt->second;
-                }
-                else
-                {
-                    varId = varIdxToName.size();
-                    varIdxToName.push_back(str);
-                    varNameToIdx.emplace(str, varId);
-                }
-
+                uint32_t symId = symTable.getOrAdd(str);
                 auto& token = tokens.emplace_back();
-                token.setTokenType(TokenType::Variable);
-                token.m_variableData.m_varId = varId;
+                token.setTokenType(TokenType::Symbol);
+                token.m_symbolData.m_symId = symId;
             }
 
             str.clear();
@@ -197,18 +183,26 @@ bool parseTokenText(const string& text,
             break;
         }
 
-        if (ch == '\\')
-        {
-            auto& token = tokens.emplace_back();
-            token.setTokenType(TokenType::Lambda);
-            state = ParseState::BeforeToken;
-            continue;
-        }
-
         if (ch == '$')
         {
             auto& token = tokens.emplace_back();
             token.setTokenType(TokenType::Apply);
+            state = ParseState::BeforeToken;
+            continue;
+        }
+
+        if (ch == '{')
+        {
+            auto& token = tokens.emplace_back();
+            token.setTokenType(TokenType::LGroup);
+            state = ParseState::BeforeToken;
+            continue;
+        }
+
+        if (ch == '}')
+        {
+            auto& token = tokens.emplace_back();
+            token.setTokenType(TokenType::RGroup);
             state = ParseState::BeforeToken;
             continue;
         }
@@ -226,6 +220,20 @@ bool parseTokenText(const string& text,
             auto& token = tokens.emplace_back();
             token.setTokenType(TokenType::RParen);
             state = ParseState::BeforeToken;
+            continue;
+        }
+
+        if (ch == ',')
+        {
+            auto& token = tokens.emplace_back();
+            token.setTokenType(TokenType::Comma);
+            state = ParseState::BeforeToken;
+            continue;
+        }
+
+        if (ch == '"')
+        {
+            state = ParseState::InSignal;
             continue;
         }
 
@@ -250,7 +258,8 @@ bool parseTokenText(const string& text,
     return true;
 }
 
-bool formatTokenText(const vector<Token>& tokens,
+bool formatTokenText(const SymTable& symTable,
+                     const vector<Token>& tokens,
                      string* pText,
                      string* pMsg)
 {
@@ -260,7 +269,9 @@ bool formatTokenText(const vector<Token>& tokens,
     {
         TokenType tokenType = token.getTokenType();
 
-        if (tokenType == TokenType::RParen)
+        if (tokenType == TokenType::RGroup ||
+            tokenType == TokenType::RParen ||
+            tokenType == TokenType::Comma)
         {
             needSpace = false;
         }
@@ -277,40 +288,26 @@ bool formatTokenText(const vector<Token>& tokens,
             text += "ap";
             break;
         }
-        case TokenType::Lambda:
-        {
-            text += '\\';
-            break;
-        }
-        case TokenType::If:
-        {
-            text += "if";
-            break;
-        }
-        case TokenType::And:
-        {
-            text += "and";
-            break;
-        }
-        case TokenType::Or:
-        {
-            text += "or";
-            break;
-        }
         case TokenType::Integer:
         {
             text += Int::format(token.m_integerData.m_value);
-            break;
-        }
-        case TokenType::Boolean:
-        {
-            text += token.m_booleanData.m_value ? "true" : "false";
             break;
         }
         case TokenType::Variable:
         {
             text += 'x';
             text += strprintf("%" PRIu32 "", token.m_variableData.m_varId);
+            break;
+        }
+        case TokenType::Symbol:
+        {
+            string symName;
+            if (!symTable.getName(token.m_symbolData.m_symId, &symName))
+            {
+                if (pMsg) *pMsg = "Unknown symbol";
+                return false;
+            }
+            text += symName;
             break;
         }
         case TokenType::Function:
@@ -324,14 +321,19 @@ bool formatTokenText(const vector<Token>& tokens,
             text += str;
             break;
         }
-        case TokenType::Let:
-        {
-            text += "let";
-            break;
-        }
         case TokenType::Assign:
         {
             text += "=";
+            break;
+        }
+        case TokenType::LGroup:
+        {
+            text += "{";
+            break;
+        }
+        case TokenType::RGroup:
+        {
+            text += "}";
             break;
         }
         case TokenType::LParen:
@@ -344,6 +346,11 @@ bool formatTokenText(const vector<Token>& tokens,
             text += ")";
             break;
         }
+        case TokenType::Comma:
+        {
+            text += ",";
+            break;
+        }
         default:
         {
             if (pMsg) *pMsg = "Unexpected token type";
@@ -351,7 +358,9 @@ bool formatTokenText(const vector<Token>& tokens,
         }
         }
 
-        needSpace = (tokenType != TokenType::LParen);
+        needSpace =
+            (tokenType != TokenType::LGroup &&
+             tokenType != TokenType::LParen);
     }
 
     if (pText) *pText = text;

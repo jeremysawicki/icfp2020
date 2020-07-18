@@ -8,19 +8,18 @@
 enum class TokenType : uint32_t
 {
     Invalid,
-    Apply,
-    Lambda,
-    If,
-    And,
-    Or,
+    Apply, // #17
     Integer,
-    Boolean,
     Variable,
+    Symbol,
     Function,
-    Let,
     Assign,
-    LParen,
-    RParen
+    LGroup,
+    RGroup,
+    LParen, // #30
+    RParen, // #30
+    Comma, // #30
+    Signal
 };
 
 class Token;
@@ -31,22 +30,28 @@ public:
     Int m_value;
 };
 
-class TokenBooleanData
-{
-public:
-    bool m_value = false;
-};
-
 class TokenVariableData
 {
 public:
     uint32_t m_varId = 0;
 };
 
+class TokenSymbolData
+{
+public:
+    uint32_t m_symId = 0;
+};
+
 class TokenFunctionData
 {
 public:
     Function m_func = Function::Invalid;
+};
+
+class TokenSignalData
+{
+public:
+    std::string m_signal;
 };
 
 class Token
@@ -105,9 +110,10 @@ public:
             switch (tokenType)
             {
             case TokenType::Integer: new(&m_integerData) TokenIntegerData; break;
-            case TokenType::Boolean: new(&m_booleanData) TokenBooleanData; break;
             case TokenType::Variable: new(&m_variableData) TokenVariableData; break;
+            case TokenType::Symbol: new(&m_symbolData) TokenSymbolData; break;
             case TokenType::Function: new(&m_functionData) TokenFunctionData; break;
+            case TokenType::Signal: new(&m_signalData) TokenSignalData; break;
             default: ;
             }
         }
@@ -119,9 +125,10 @@ private:
         switch (m_tokenType)
         {
         case TokenType::Integer: m_integerData.~TokenIntegerData(); break;
-        case TokenType::Boolean: m_booleanData.~TokenBooleanData(); break;
         case TokenType::Variable: m_variableData.~TokenVariableData(); break;
+        case TokenType::Symbol: m_symbolData.~TokenSymbolData(); break;
         case TokenType::Function: m_functionData.~TokenFunctionData(); break;
+        case TokenType::Signal: m_signalData.~TokenSignalData(); break;
         default: ;
         }
     }
@@ -132,9 +139,10 @@ private:
         switch (other.m_tokenType)
         {
         case TokenType::Integer: new(&m_integerData) TokenIntegerData(other.m_integerData); break;
-        case TokenType::Boolean: new(&m_booleanData) TokenBooleanData(other.m_booleanData); break;
         case TokenType::Variable: new(&m_variableData) TokenVariableData(other.m_variableData); break;
+        case TokenType::Symbol: new(&m_symbolData) TokenSymbolData(other.m_symbolData); break;
         case TokenType::Function: new(&m_functionData) TokenFunctionData(other.m_functionData); break;
+        case TokenType::Signal: new(&m_signalData) TokenSignalData(other.m_signalData); break;
         default: ;
         }
     }
@@ -145,9 +153,10 @@ private:
         switch (other.m_tokenType)
         {
         case TokenType::Integer: new(&m_integerData) TokenIntegerData(std::move(other.m_integerData)); break;
-        case TokenType::Boolean: new(&m_booleanData) TokenBooleanData(std::move(other.m_booleanData)); break;
         case TokenType::Variable: new(&m_variableData) TokenVariableData(std::move(other.m_variableData)); break;
+        case TokenType::Symbol: new(&m_symbolData) TokenSymbolData(std::move(other.m_symbolData)); break;
         case TokenType::Function: new(&m_functionData) TokenFunctionData(std::move(other.m_functionData)); break;
+        case TokenType::Signal: new(&m_signalData) TokenSignalData(std::move(other.m_signalData)); break;
         default: ;
         }
     }
@@ -157,9 +166,10 @@ public:
     union
     {
         TokenIntegerData m_integerData;
-        TokenBooleanData m_booleanData;
         TokenVariableData m_variableData;
+        TokenSymbolData m_symbolData;
         TokenFunctionData m_functionData;
+        TokenSignalData m_signalData;
     };
 };
 

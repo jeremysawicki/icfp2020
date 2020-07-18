@@ -4,12 +4,15 @@
 #include "Common.hpp"
 
 class Token;
+class SymTable;
 
-bool parseTokenText(const std::string& text,
+bool parseTokenText(SymTable& symTable,
+                    const std::string& text,
                     std::vector<Token>* pTokens,
                     std::string* pMsg = nullptr);
 
-bool formatTokenText(const std::vector<Token>& tokens,
+bool formatTokenText(const SymTable& symTable,
+                     const std::vector<Token>& tokens,
                      std::string* pText,
                      std::string* pMsg = nullptr);
 
