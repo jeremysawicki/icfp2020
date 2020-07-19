@@ -136,7 +136,7 @@ namespace
         {
             neg = false;
         }
-        else if (b0 == '1' && b0 == '0')
+        else if (b0 == '1' && b1 == '0')
         {
             neg = true;
         }
@@ -173,7 +173,7 @@ namespace
             return false;
         }
         Int a(0);
-        Int one(1);
+        Int one(neg ? -1 : 1);
         Int two(2);
         for (uint32_t i = 0; i < digitCount * 4; i++)
         {

@@ -73,17 +73,18 @@ endif
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-LDLIBS = -lgmpxx -lgmp
+LDLIBS = -lgmpxx -lgmp -lcurl
 LDLIBS += $(LDLIBS_$(PLATFORM))
 LDLIBS += $(LDLIBS_$(patsubst %$(EXE),%,$@))
 LDLIBS += $(LDLIBS_$(PLATFORM)_$(patsubst %$(EXE),%,$@))
 LDLIBS_linux +=
 LDLIBS_test +=
 LDLIBS_linux_test +=
-LDLIBS_app += -lcurl
-LDLIBS_send += -lcurl
-STDOBJS =
-ALLPROGS = app send run
+LDLIBS_interact += $(LDLIBS_GRAPHICS)
+UTILOBJS = StringUtils.o FileUtils.o TimeUtils.o ParseUtils.o
+STDOBJS = TokenText.o ParseValue.o Bindings.o Eval.o Modem.o Heap.o PrintValue.o FormatValue.o Protocol.o
+BOTOBJS = Bot.o BotFactory.o PassBot.o
+ALLPROGS = send run interact test create bot
 ALLPROGS += $(ALLPROGS_$(PLATFORM))
 ALLPROGS_linux +=
 
@@ -92,9 +93,12 @@ ALLPROGS_EXE = $(patsubst %,%$(EXE),$(ALLPROGS))
 .PHONY: all
 all: $(ALLPROGS_EXE)
 
-app$(EXE): app.o StringUtils.o FileUtils.o Protocol.o
-send$(EXE): send.o StringUtils.o FileUtils.o Protocol.o
-run$(EXE): run.o StringUtils.o FileUtils.o TokenText.o ParseExpr.o Bindings.o Eval.o Modem.o Heap.o PrintValue.o
+send$(EXE): send.o $(UTILOBJS) $(STDOBJS)
+run$(EXE): run.o $(UTILOBJS) $(STDOBJS)
+interact$(EXE): interact.o $(UTILOBJS) $(STDOBJS) Graphics.o
+test$(EXE): test.o $(UTILOBJS) $(STDOBJS)
+create$(EXE): create.o $(UTILOBJS) $(STDOBJS)
+bot$(EXE): bot.o $(UTILOBJS) $(STDOBJS) $(BOTOBJS)
 
 .PHONY: clean
 clean:

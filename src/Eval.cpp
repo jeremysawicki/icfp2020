@@ -1,10 +1,15 @@
 #include "Eval.hpp"
 #include "Value.hpp"
 #include "Modem.hpp"
+#include "TimeUtils.hpp"
+#include "Protocol.hpp"
+#include "PrintValue.hpp"
 
 using std::string;
 using std::vector;
 using std::pair;
+
+#define DEBUG 0
 
 bool eval(Value& value,
           string* pMsg)
@@ -14,6 +19,8 @@ bool eval(Value& value,
         Value funcValue = value->m_applyData.m_funcValue;
         Value argValue = value->m_applyData.m_argValue;
         value->setValueType(ValueType::Invalid);
+        //value->setValueType(ValueType::Closure);
+        //value->m_closureData.m_func = Function::Demodulate;
 
         if (!eval(funcValue, pMsg))
         {
@@ -22,6 +29,7 @@ bool eval(Value& value,
 
         if (funcValue->m_valueType != ValueType::Closure)
         {
+            printf("%" PRIu32 "\n", (uint32_t)funcValue->m_valueType);
             if (pMsg) *pMsg = "Attempt to call something other than a function";
             return false;
         }
@@ -84,6 +92,9 @@ bool eval(Value& value,
         {
         case Function::Inc:
         {
+#if DEBUG
+            printf("Function::Inc\n");
+#endif
             if (!eval(argValue, pMsg)) return false;
             if (argValue->m_valueType != ValueType::Integer)
             {
@@ -104,6 +115,9 @@ bool eval(Value& value,
         }
         case Function::Dec:
         {
+#if DEBUG
+            printf("Function::Dec\n");
+#endif
             if (!eval(argValue, pMsg)) return false;
             if (argValue->m_valueType != ValueType::Integer)
             {
@@ -124,6 +138,9 @@ bool eval(Value& value,
         }
         case Function::Add:
         {
+#if DEBUG
+            printf("Function::Add\n");
+#endif
             if (!eval(args[0], pMsg)) return false;
             if (args[0]->m_valueType != ValueType::Integer)
             {
@@ -152,6 +169,9 @@ bool eval(Value& value,
         }
         case Function::Mul:
         {
+#if DEBUG
+            printf("Function::Mul\n");
+#endif
             if (!eval(args[0], pMsg)) return false;
             if (args[0]->m_valueType != ValueType::Integer)
             {
@@ -180,6 +200,9 @@ bool eval(Value& value,
         }
         case Function::Div:
         {
+#if DEBUG
+            printf("Function::Div\n");
+#endif
             if (!eval(args[0], pMsg)) return false;
             if (args[0]->m_valueType != ValueType::Integer)
             {
@@ -208,6 +231,9 @@ bool eval(Value& value,
         }
         case Function::Eq:
         {
+#if DEBUG
+            printf("Function::Eq\n");
+#endif
             if (!eval(args[0], pMsg)) return false;
             if (args[0]->m_valueType != ValueType::Integer)
             {
@@ -233,6 +259,9 @@ bool eval(Value& value,
         }
         case Function::Lt:
         {
+#if DEBUG
+            printf("Function::Lt\n");
+#endif
             if (!eval(args[0], pMsg)) return false;
             if (args[0]->m_valueType != ValueType::Integer)
             {
@@ -258,6 +287,9 @@ bool eval(Value& value,
         }
         case Function::Modulate:
         {
+#if DEBUG
+            printf("Function::Modulate\n");
+#endif
             string signal;
             if (!modulate(argValue, signal, pMsg)) return false;
             value->setValueType(ValueType::Signal);
@@ -266,6 +298,9 @@ bool eval(Value& value,
         }
         case Function::Demodulate:
         {
+#if DEBUG
+            printf("Function::Demodulate\n");
+#endif
             if (!eval(argValue, pMsg)) return false;
             if (argValue->m_valueType != ValueType::Signal)
             {
@@ -278,9 +313,27 @@ bool eval(Value& value,
             }
             return true;
         }
-        //case Function::Send:
+        case Function::Send:
+        {
+#if DEBUG
+            printf("Function::Send\n");
+#endif
+            string request;
+            if (!modulate(argValue, request, pMsg)) return false;
+            sleepMS(500);
+            string response;
+            if (!Protocol::send(request, &response, pMsg)) return false;
+            if (!demodulate(response, value, pMsg))
+            {
+                return false;
+            }
+            return true;
+        }
         case Function::Neg:
         {
+#if DEBUG
+            printf("Function::Neg\n");
+#endif
             if (!eval(argValue, pMsg)) return false;
             if (argValue->m_valueType != ValueType::Integer)
             {
@@ -301,6 +354,9 @@ bool eval(Value& value,
         }
         case Function::S:
         {
+#if DEBUG
+            printf("Function::S\n");
+#endif
             value->setValueType(ValueType::Apply);
             value->m_applyData.m_funcValue.init(ValueType::Apply);
             value->m_applyData.m_funcValue->m_applyData.m_funcValue = args[0];
@@ -312,6 +368,9 @@ bool eval(Value& value,
         }
         case Function::C:
         {
+#if DEBUG
+            printf("Function::C\n");
+#endif
             value->setValueType(ValueType::Apply);
             value->m_applyData.m_funcValue.init(ValueType::Apply);
             value->m_applyData.m_funcValue->m_applyData.m_funcValue = args[0];
@@ -321,6 +380,9 @@ bool eval(Value& value,
         }
         case Function::B:
         {
+#if DEBUG
+            printf("Function::B\n");
+#endif
             value->setValueType(ValueType::Apply);
             value->m_applyData.m_funcValue = args[0];
             value->m_applyData.m_argValue.init(ValueType::Apply);
@@ -330,21 +392,33 @@ bool eval(Value& value,
         }
         case Function::True:
         {
-            value = args[0];
+#if DEBUG
+            printf("Function::True\n");
+#endif
+            *value = *args[0];
             break;
         }
         case Function::False:
         {
-            value = argValue;
+#if DEBUG
+            printf("Function::False\n");
+#endif
+            *value = *argValue;
             break;
         }
         case Function::I:
         {
-            value = argValue;
+#if DEBUG
+            printf("Function::I\n");
+#endif
+            *value = *argValue;
             break;
         }
         case Function::Cons:
         {
+#if DEBUG
+            printf("Function::Cons\n");
+#endif
             value->setValueType(ValueType::Apply);
             value->m_applyData.m_funcValue.init(ValueType::Apply);
             value->m_applyData.m_funcValue->m_applyData.m_funcValue = argValue;
@@ -354,6 +428,9 @@ bool eval(Value& value,
         }
         case Function::Car:
         {
+#if DEBUG
+            printf("Function::Car\n");
+#endif
             value->setValueType(ValueType::Apply);
             value->m_applyData.m_funcValue = argValue;
             value->m_applyData.m_argValue.init(ValueType::Closure);
@@ -362,6 +439,9 @@ bool eval(Value& value,
         }
         case Function::Cdr:
         {
+#if DEBUG
+            printf("Function::Cdr\n");
+#endif
             value->setValueType(ValueType::Apply);
             value->m_applyData.m_funcValue = argValue;
             value->m_applyData.m_argValue.init(ValueType::Closure);
@@ -370,12 +450,18 @@ bool eval(Value& value,
         }
         case Function::Nil:
         {
+#if DEBUG
+            printf("Function::Nil\n");
+#endif
             value->setValueType(ValueType::Closure);
             value->m_closureData.m_func = Function::True;
             break;
         }
         case Function::IsNil:
         {
+#if DEBUG
+            printf("Function::IsNil\n");
+#endif
             if (!eval(argValue, pMsg)) return false;
             if (argValue->m_valueType == ValueType::Closure)
             {
@@ -401,6 +487,9 @@ bool eval(Value& value,
         //case Function::Vec:
         case Function::Draw:
         {
+#if DEBUG
+            printf("Function::Draw\n");
+#endif
             vector<pair<int64_t, int64_t>> pts;
             Value curValue = argValue;
             while (true)
@@ -458,13 +547,16 @@ bool eval(Value& value,
                 if (pMsg) *pMsg = "Bad argument to draw";
                 return false;
             }
-            int64_t sizeX = 0;
-            int64_t sizeY = 0;
+            int64_t minX = -3;
+            int64_t maxX = 3;
+            int64_t minY = -3;
+            int64_t maxY = 3;
             for (auto& pt : pts)
             {
-                if (pt.first < 0 || pt.second < 0)
+                printf("(%" PRIi64 ", %" PRIi64 ")\n", pt.first, pt.second);
+                if (pt.first <= -1024 || pt.second <= -1024)
                 {
-                    if (pMsg) *pMsg = "Negative coordinate in draw";
+                    if (pMsg) *pMsg = "Large negative coordinate in draw";
                     return false;
                 }
                 if (pt.first >= 1024 || pt.second >= 1024)
@@ -472,21 +564,26 @@ bool eval(Value& value,
                     if (pMsg) *pMsg = "Large coordinate in draw";
                     return false;
                 }
-                sizeX = std::max(sizeX, pt.first + 1);
-                sizeY = std::max(sizeY, pt.second + 1);
+                minX = std::min(minX, pt.first - 3);
+                maxX = std::max(maxX, pt.first + 3);
+                minY = std::min(minY, pt.second - 3);
+                maxY = std::max(maxY, pt.second + 3);
             }
             value->setValueType(ValueType::Picture);
             auto& picture = value->m_pictureData.m_picture;
-            picture.resize(sizeX, sizeY);
+            picture.resize(maxX - minX + 1, maxY - minY + 1);
             for (auto& pt : pts)
             {
-                picture(pt.first, pt.second) = 1;
+                picture(pt.first - minX, pt.second - minY) = 1;
             }
             break;
         }
         //case Function::Checkerboard:
         case Function::MultipleDraw:
         {
+#if DEBUG
+            printf("Function::MultipleDraw\n");
+#endif
             if (!eval(argValue, pMsg)) return false;
             if (argValue->m_valueType == ValueType::Closure &&
                 argValue->m_closureData.m_func == Function::Nil &&
@@ -518,17 +615,20 @@ bool eval(Value& value,
         }
         case Function::If0:
         {
+#if DEBUG
+            printf("Function::If0\n");
+#endif
             if (!eval(args[0], pMsg)) return false;
             if (args[0]->m_valueType == ValueType::Integer)
             {
                 if (Int::eq(args[0]->m_integerData.m_value, Int(0)))
                 {
-                    value = args[1];
+                    *value = *args[1];
                     break;
                 }
                 if (Int::eq(args[0]->m_integerData.m_value, Int(1)))
                 {
-                    value = argValue;
+                    *value = *argValue;
                     break;
                 }
                 if (pMsg) *pMsg = "Bad integer argument to if0";

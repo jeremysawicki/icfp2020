@@ -1,7 +1,8 @@
-#include "ParseExpr.hpp"
+#include "ParseValue.hpp"
 #include "Token.hpp"
 #include "Bindings.hpp"
 #include "Value.hpp"
+#include "TokenText.hpp"
 
 using std::string;
 using std::vector;
@@ -10,14 +11,14 @@ using std::vector;
 
 namespace
 {
-    bool parseExprImpl(const vector<Token>& tokens,
-                       size_t& pos,
-                       const Bindings& bindings,
-                       Value& value,
-                       string* pMsg)
+    bool parseValueImpl(const vector<Token>& tokens,
+                        size_t& pos,
+                        const Bindings& bindings,
+                        Value& value,
+                        string* pMsg)
     {
 #if DEBUG
-        printf("> parseExprImpl\n");
+        printf("> parseValueImpl\n");
 #endif
         size_t size = tokens.size();
         if (pos >= size)
@@ -39,20 +40,20 @@ namespace
             value->m_applyData.m_funcValue.init();
             value->m_applyData.m_argValue.init();
 
-            if (!parseExprImpl(tokens,
-                               pos,
-                               bindings,
-                               value->m_applyData.m_funcValue,
-                               pMsg))
+            if (!parseValueImpl(tokens,
+                                pos,
+                                bindings,
+                                value->m_applyData.m_funcValue,
+                                pMsg))
             {
                 return false;
             }
 
-            if (!parseExprImpl(tokens,
-                               pos,
-                               bindings,
-                               value->m_applyData.m_argValue,
-                               pMsg))
+            if (!parseValueImpl(tokens,
+                                pos,
+                                bindings,
+                                value->m_applyData.m_argValue,
+                                pMsg))
             {
                 return false;
             }
@@ -79,7 +80,11 @@ namespace
                 if (pMsg) *pMsg = "Symbol out of range";
                 return false;
             }
-            value = bindings.m_values[symId];
+            //value = bindings.m_values[symId];
+            value->setValueType(ValueType::Apply);
+            value->m_applyData.m_funcValue.init(ValueType::Closure);
+            value->m_applyData.m_funcValue->m_closureData.m_func = Function::I;
+            value->m_applyData.m_argValue = bindings.m_values[symId];
             break;
         }
         case TokenType::Function:
@@ -106,11 +111,11 @@ namespace
 #if DEBUG
             printf("%" PRIuZ ": TokenType::LGroup\n", pos - 1);
 #endif
-            if (!parseExprImpl(tokens,
-                               pos,
-                               bindings,
-                               value,
-                               pMsg))
+            if (!parseValueImpl(tokens,
+                                pos,
+                                bindings,
+                                value,
+                                pMsg))
             {
                 return false;
             }
@@ -131,17 +136,20 @@ namespace
 
                 Value applyValue;
                 applyValue.init(ValueType::Apply);
-                applyValue->m_applyData.m_funcValue = value;
+                //applyValue->m_applyData.m_funcValue = value;
+                applyValue->m_applyData.m_funcValue.init();
+                *applyValue->m_applyData.m_funcValue = *value;
                 applyValue->m_applyData.m_argValue.init();
-                if (!parseExprImpl(tokens,
-                                   pos,
-                                   bindings,
-                                   applyValue->m_applyData.m_argValue,
-                                   pMsg))
+                if (!parseValueImpl(tokens,
+                                    pos,
+                                    bindings,
+                                    applyValue->m_applyData.m_argValue,
+                                    pMsg))
                 {
                     return false;
                 }
-                value = applyValue;
+                //value = applyValue;
+                *value = *applyValue;
             }
 
             break;
@@ -181,11 +189,11 @@ namespace
                     tailValue->m_closureData.m_args[0].init();
                     tailValue->m_closureData.m_args[1].init();
 
-                    if (!parseExprImpl(tokens,
-                                       pos,
-                                       bindings,
-                                       tailValue->m_closureData.m_args[0],
-                                       pMsg))
+                    if (!parseValueImpl(tokens,
+                                        pos,
+                                        bindings,
+                                        tailValue->m_closureData.m_args[0],
+                                        pMsg))
                     {
                         return false;
                     }
@@ -253,24 +261,24 @@ namespace
         }
 
 #if DEBUG
-        printf("< parseExprImpl\n");
+        printf("< parseValueImpl\n");
 #endif
         return true;
     }
 }
 
-bool parseExpr(const vector<Token>& tokens,
-               const Bindings& bindings,
-               Value& value,
-               string* pMsg)
+bool parseValue(const vector<Token>& tokens,
+                const Bindings& bindings,
+                Value& value,
+                string* pMsg)
 {
     size_t pos = 0;
     value.init();
-    if (!parseExprImpl(tokens,
-                       pos,
-                       bindings,
-                       value,
-                       pMsg))
+    if (!parseValueImpl(tokens,
+                        pos,
+                        bindings,
+                        value,
+                        pMsg))
     {
         return false;
     }
@@ -328,14 +336,34 @@ bool parseBindings(const vector<Token>& tokens,
             return false;
         }
 
-        if (!parseExprImpl(tokens,
-                           pos,
-                           bindings,
-                           bindings.m_values[symId],
-                           pMsg))
+        if (!parseValueImpl(tokens,
+                            pos,
+                            bindings,
+                            bindings.m_values[symId],
+                            pMsg))
         {
             return false;
         }
+    }
+
+    return true;
+}
+
+bool parseValueText(SymTable& symTable,
+                    const string& text,
+                    const Bindings& bindings,
+                    Value& value,
+                    string* pMsg)
+{
+    vector<Token> tokens;
+    if (!parseTokenText(symTable, text, &tokens, pMsg))
+    {
+        return false;
+    }
+
+    if (!parseValue(tokens, bindings, value, pMsg))
+    {
+        return false;
     }
 
     return true;

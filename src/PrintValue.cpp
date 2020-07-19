@@ -109,8 +109,8 @@ namespace
             auto& picture = value->m_pictureData.m_picture;
             size_t width = picture.getWidth();
             size_t height = picture.getHeight();
-            size_t w = std::max(width + 3, (size_t)17);
-            size_t h = std::max(height + 3, (size_t)13);
+            size_t w = width; //std::max(width + 3, (size_t)17);
+            size_t h = height; //std::max(height + 3, (size_t)13);
             string str;
             str += '\n';
             str += ' ';

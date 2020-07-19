@@ -2,13 +2,16 @@
 #include "Cleanup.hpp"
 #include "StringUtils.hpp"
 #include "FileUtils.hpp"
+#include "Value.hpp"
+#include "Modem.hpp"
+#include "SymTable.hpp"
+#include "FormatValue.hpp"
 #include <curl/curl.h>
 
 // sudo apt-get install libcurl4-openssl-dev
 
 using std::string;
 using std::vector;
-using std::pair;
 
 namespace Protocol
 {
@@ -27,6 +30,61 @@ namespace Protocol
         curl_global_cleanup();
     }
 
+    string urlPrefix;
+    string urlSuffix;
+    bool verbose = false;
+
+    bool getAPIKey(string* pKey)
+    {
+        string tmpKey;
+        if (!readFile("../../../apikey.txt", &tmpKey))
+        {
+            return false;
+        }
+
+        string key;
+        for (char ch : tmpKey)
+        {
+            if (ch >= 33 && ch <= 126)
+            {
+                key.push_back(ch);
+            }
+        }
+        if (key.empty())
+        {
+            return false;
+        }
+
+        if (pKey) *pKey = std::move(key);
+        return true;
+    }
+
+    bool initAPIKey(bool verbose_,
+                    string* pMsg)
+    {
+        string key;
+        if (!getAPIKey(&key))
+        {
+            if (pMsg) *pMsg = "Error reading API key";
+            return false;
+        }
+
+        urlPrefix = "https://icfpc2020-api.testkontur.ru";
+        urlSuffix = "?apiKey=" + key;
+        verbose = verbose_;
+        return true;
+    }
+
+    bool initDocker(const string& url,
+                    bool verbose_,
+                    string* pMsg)
+    {
+        urlPrefix = url;
+        urlSuffix = "";
+        verbose = verbose_;
+        return true;
+    }
+
     size_t writeFunction(char* ptr, size_t size, size_t nmemb, void* userdata)
     {
         string* pStr = (string*)userdata;
@@ -34,7 +92,7 @@ namespace Protocol
         return size * nmemb;
     }
 
-    bool makeRequest(const string& url,
+    bool makeRequest(const string& path,
                      const string& request,
                      string* pResponse,
                      string* pMsg)
@@ -55,6 +113,8 @@ namespace Protocol
 
         char errorBuf[CURL_ERROR_SIZE];
 
+        string url = urlPrefix + path + urlSuffix;
+
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeFunction);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)&strResponse);
@@ -66,6 +126,7 @@ namespace Protocol
         curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuf);
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
         curl_easy_setopt(curl, CURLOPT_COPYPOSTFIELDS, request.c_str());
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
 
         errorBuf[0] = 0;
 
@@ -118,62 +179,168 @@ namespace Protocol
         return true;
     }
 
-    bool getAPIKey(string* pKey)
+    bool makeRequest(const string& path,
+                     Value& request,
+                     Value* pResponse,
+                     string* pMsg)
     {
-        string tmpKey;
-        if (!readFile("../../../apikey.txt", &tmpKey))
+        if (verbose)
         {
-            return false;
-        }
-
-        string key;
-        for (char ch : tmpKey)
-        {
-            if (ch >= 33 && ch <= 126)
+            SymTable symTable;
+            string requestText;
+            if (!formatValueText(symTable, request, &requestText, pMsg))
             {
-                key.push_back(ch);
+                return false;
             }
+            printf("> %s\n", requestText.c_str());
         }
-        if (key.empty())
+
+        string requestSignal;
+        if (!modulate(request, requestSignal, pMsg))
         {
             return false;
         }
 
-        if (pKey) *pKey = std::move(key);
+        string responseSignal;
+        if (!makeRequest(path, requestSignal, &responseSignal, pMsg))
+        {
+            return false;
+        }
+
+        pResponse->init();
+        if (!demodulate(responseSignal, *pResponse, pMsg))
+        {
+            return false;
+        }
+
+        if (verbose)
+        {
+            SymTable symTable;
+            string responseText;
+            if (!formatValueText(symTable, *pResponse, &responseText, pMsg))
+            {
+                return false;
+            }
+            printf("< %s\n", responseText.c_str());
+            printf("\n");
+        }
+
         return true;
     }
 
-    bool makeAPIRequest(const string& url,
-                        const string& request,
-                        string* pResponse,
-                        string* pMsg)
+    Value makeInt(int64_t intValue)
     {
-        string key;
-        if (!getAPIKey(&key))
-        {
-            if (pMsg) *pMsg = "Error reading API key";
-            return false;
-        }
-
-        string fullUrl = url + "?apiKey=" + key;
-
-        if (!makeRequest(fullUrl,
-                         request,
-                         pResponse,
-                         pMsg))
-        {
-            return false;
-        }
-
-        return true;
+        Value value;
+        value.init(ValueType::Integer);
+        value->m_integerData.m_value = Int(intValue);
+        return value;
     }
 
-    bool test(const string& url,
-              const string& playerKey,
+    Value makeNil()
+    {
+        Value value;
+        value.init(ValueType::Closure);
+        value->m_closureData.m_func = Function::Nil;
+        return value;
+    }
+
+    Value makeCons(Value car, Value cdr)
+    {
+        Value value;
+        value.init(ValueType::Closure);
+        value->m_closureData.m_func = Function::Cons;
+        value->m_closureData.m_size = 2;
+        value->m_closureData.m_args[0] = car;
+        value->m_closureData.m_args[1] = cdr;
+        return value;
+    }
+
+    Value makeList()
+    {
+        return makeNil();
+    }
+
+    template<typename... Args>
+    Value makeList(Value head, Args... tail)
+    {
+        return makeCons(head, makeList(tail...));
+    }
+
+    Value makeList(const std::vector<Value>& list)
+    {
+        Value value = makeNil();
+        for (size_t i = list.size(); i > 0; )
+        {
+            i--;
+            value = makeCons(list[i], value);
+        }
+        return value;
+    }
+
+    bool isInt(const Value& value)
+    {
+        return value &&
+            value->getValueType() == ValueType::Integer;
+    }
+
+    bool isNil(const Value& value)
+    {
+        return value &&
+            value->getValueType() == ValueType::Closure &&
+            value->m_closureData.m_func == Function::Nil &&
+            value->m_closureData.m_size == 0;
+    }
+
+    bool isCons(const Value& value)
+    {
+        return value &&
+            value->getValueType() == ValueType::Closure &&
+            value->m_closureData.m_func == Function::Cons &&
+            value->m_closureData.m_size == 2;
+    }
+
+    int64_t getInt(const Value& value)
+    {
+        int64_t intValue = 0;
+        Int::getValue(value->m_integerData.m_value, &intValue, nullptr);
+        return intValue;
+    }
+
+    Value getCar(const Value& value)
+    {
+        return value->m_closureData.m_args[0];
+    }
+
+    Value getCdr(const Value& value)
+    {
+        return value->m_closureData.m_args[1];
+    }
+
+    bool isList(Value value)
+    {
+        while (isCons(value))
+        {
+            value = getCdr(value);
+        }
+        return isNil(value);
+    }
+
+    vector<Value> getList(Value value)
+    {
+        vector<Value> list;
+        while (isCons(value))
+        {
+            list.push_back(getCar(value));
+            value = getCdr(value);
+        }
+        return list;
+    }
+
+    bool test(const string& playerKey,
               string* pResponse,
               string* pMsg)
     {
-        if (!makeRequest(url,
+        if (!makeRequest("/",
                          playerKey,
                          pResponse,
                          pMsg))
@@ -188,13 +355,577 @@ namespace Protocol
               string* pResponse,
               string* pMsg)
     {
-        string url = "https://icfpc2020-api.testkontur.ru/aliens/send";
-
-        if (!makeAPIRequest(url,
-                            request,
-                            pResponse,
-                            pMsg))
+        if (!makeRequest("/aliens/send",
+                         request,
+                         pResponse,
+                         pMsg))
         {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool createTutorial(int64_t tutorialNum,
+                        Role* pRole,
+                        int64_t* pPlayerKey,
+                        string* pMsg)
+    {
+        Value request = makeList(makeInt(1), makeInt(tutorialNum));
+        Value response;
+        if (!makeRequest("/aliens/send", request, &response, pMsg))
+        {
+            return false;
+        }
+
+        if (!isList(response))
+        {
+            if (pMsg) *pMsg = "createTutorial: invalid response 1";
+            return false;
+        }
+        vector<Value> list1 = getList(response);
+        if (list1.size() < 1 ||
+            !isInt(list1[0]))
+        {
+            if (pMsg) *pMsg = "createTutorial: invalid response 2";
+            return false;
+        }
+        if (getInt(list1[0]) != 1)
+        {
+            if (pMsg) *pMsg = "createTutorial: protocol error";
+            return false;
+        }
+        if (list1.size() < 2 ||
+            !isList(list1[1]))
+        {
+            if (pMsg) *pMsg = "createTutorial: invalid response 3";
+            return false;
+        }
+        vector<Value> list2 = getList(list1[1]);
+        if (list2.size() != 1 ||
+            !isList(list2[0]))
+        {
+            if (pMsg) *pMsg = "createTutorial: invalid response 4";
+            return false;
+        }
+        vector<Value> list3 = getList(list2[0]);
+        if (list3.size() != 2 ||
+            !isInt(list3[0]) ||
+            !isInt(list3[1]))
+        {
+            if (pMsg) *pMsg = "createTutorial: invalid response 5";
+            return false;
+        }
+        int64_t iRole = getInt(list3[0]);
+        if (iRole != 0 && iRole != 1)
+        {
+            if (pMsg) *pMsg = "createTutorial: invalid response 6";
+            return false;
+        }
+        if (pRole) *pRole = (Role)iRole;
+        if (pPlayerKey) *pPlayerKey = getInt(list3[1]);
+
+        return true;
+    }
+
+    bool create(int64_t* pAttackerPlayerKey,
+                int64_t* pDefenderPlayerKey,
+                string* pMsg)
+    {
+        Value request = makeList(makeInt(1), makeInt(0));
+        Value response;
+        if (!makeRequest("/aliens/send", request, &response, pMsg))
+        {
+            return false;
+        }
+
+        if (!isList(response))
+        {
+            if (pMsg) *pMsg = "create: invalid response 1";
+            return false;
+        }
+        vector<Value> list1 = getList(response);
+        if (list1.size() < 1 ||
+            !isInt(list1[0]))
+        {
+            if (pMsg) *pMsg = "create: invalid response 2";
+            return false;
+        }
+        if (getInt(list1[0]) != 1)
+        {
+            if (pMsg) *pMsg = "create: protocol error";
+            return false;
+        }
+        if (list1.size() < 2 ||
+            !isList(list1[1]))
+        {
+            if (pMsg) *pMsg = "create: invalid response 3";
+            return false;
+        }
+        vector<Value> list2 = getList(list1[1]);
+        if (list2.size() != 2 ||
+            !isList(list2[0]) ||
+            !isList(list2[1]))
+        {
+            if (pMsg) *pMsg = "create: invalid response 4";
+            return false;
+        }
+        vector<Value> list3 = getList(list2[0]);
+        vector<Value> list4 = getList(list2[1]);
+        if (list3.size() != 2 ||
+            !isInt(list3[0]) ||
+            !isInt(list3[1]) ||
+            list4.size() != 2 ||
+            !isInt(list4[0]) ||
+            !isInt(list4[1]))
+        {
+            if (pMsg) *pMsg = "create: invalid response 5";
+            return false;
+        }
+        int64_t iRole0 = getInt(list3[0]);
+        int64_t iRole1 = getInt(list4[0]);
+        if (iRole0 != 0 && iRole0 != 1)
+        {
+            if (pMsg) *pMsg = "create: invalid response 6";
+            return false;
+        }
+        if (iRole1 != 0 && iRole1 != 1)
+        {
+            if (pMsg) *pMsg = "create: invalid response 7";
+            return false;
+        }
+        if (iRole0 == 0 && iRole1 == 1)
+        {
+            if (pAttackerPlayerKey) *pAttackerPlayerKey = getInt(list3[1]);
+            if (pDefenderPlayerKey) *pDefenderPlayerKey = getInt(list4[1]);
+        }
+        else if (iRole0 == 1 && iRole1 == 0)
+        {
+            if (pAttackerPlayerKey) *pAttackerPlayerKey = getInt(list4[1]);
+            if (pDefenderPlayerKey) *pDefenderPlayerKey = getInt(list3[1]);
+        }
+        else
+        {
+            if (pMsg) *pMsg = "create: invalid response 8";
+            return false;
+        }
+
+        return true;
+    }
+
+    bool isSuccess(Value& response)
+    {
+        if (!isList(response))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(response);
+        if (list1.size() < 1 ||
+            !isInt(list1[0]) ||
+            getInt(list1[0]) != 1)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool parseInfo(Value& response,
+                   Info* pInfo)
+    {
+        if (!isList(response))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(response);
+        if (list1.size() < 2 ||
+            !isInt(list1[1]))
+        {
+            return false;
+        }
+
+        int64_t iStage = getInt(list1[1]);
+        if (iStage != 0 && iStage != 1 && iStage != 2)
+        {
+            return false;
+        }
+        pInfo->m_stage = (Stage)iStage;
+
+        if (iStage == 2)
+        {
+            return true;
+        }
+
+        if (list1.size() < 3 ||
+            !isList(list1[2]))
+        {
+            return false;
+        }
+
+        vector<Value> list2 = getList(list1[2]);
+        if (list2.size() < 3 ||
+            !isInt(list2[0]) ||
+            !isInt(list2[1]) ||
+            !isList(list2[2]))
+        {
+            return false;
+        }
+        pInfo->m_maxTicks = getInt(list2[0]);
+        pInfo->m_id = getInt(list2[1]);
+        if (pInfo->m_id != 0 && pInfo->m_id != 1 )
+        {
+            return false;
+        }
+        vector<Value> list3 = getList(list2[2]);
+        if (list3.size() < 3 ||
+            !isInt(list3[0]) ||
+            !isInt(list3[1]) ||
+            !isInt(list3[2]))
+        {
+            return false;
+        }
+        pInfo->m_val1 = getInt(list3[0]);
+        pInfo->m_val2 = getInt(list3[1]);
+        pInfo->m_val3 = getInt(list3[2]);
+        return true;
+    }
+
+    bool parseVec(Value& value,
+                  Vec* pVec)
+    {
+        if (!isCons(value))
+        {
+            return false;
+        }
+        Value car = getCar(value);
+        Value cdr = getCdr(value);
+        if (!isInt(car) ||
+            !isInt(cdr))
+        {
+            return false;
+        }
+        pVec->m_x = getInt(car);
+        pVec->m_y = getInt(cdr);
+        return true;
+    }
+
+    Value formatVec(const Vec& vec)
+    {
+        return makeCons(makeInt(vec.m_x), makeInt(vec.m_y));
+    }
+
+    bool parseParams(Value& value,
+                     Params* pParams)
+    {
+        if (!isList(value))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(value);
+        if (list1.size() < 4 ||
+            !isInt(list1[0]) ||
+            !isInt(list1[1]) ||
+            !isInt(list1[2]) ||
+            !isInt(list1[3]))
+        {
+            return false;
+        }
+        pParams->m_param1 = getInt(list1[0]);
+        pParams->m_param2 = getInt(list1[1]);
+        pParams->m_param3 = getInt(list1[2]);
+        pParams->m_param4 = getInt(list1[3]);
+        return true;
+    }
+
+    bool parseCommandType(Value& value,
+                          CommandType* pCommandType)
+    {
+        if (!isInt(value))
+        {
+            return false;
+        }
+        int64_t iCommandType = getInt(value);
+        if (iCommandType != 0 && iCommandType != 1 && iCommandType != 2)
+        {
+            return false;
+        }
+        *pCommandType = (CommandType)iCommandType;
+        return true;
+    }
+
+    Value formatCommand(const Command& command)
+    {
+        if (command.m_commandType == CommandType::Accelerate)
+        {
+            return makeList(makeInt(0),
+                            makeInt(command.m_id),
+                            formatVec(command.m_vec));
+        }
+        if (command.m_commandType == CommandType::Detonate)
+        {
+            return makeList(makeInt(1),
+                            makeInt(command.m_id));
+        }
+        if (command.m_commandType == CommandType::Shoot)
+        {
+            return makeList(makeInt(0),
+                            makeInt(command.m_id),
+                            formatVec(command.m_vec),
+                            makeInt(command.m_val));
+        }
+
+        return makeNil();
+    }
+
+    Value formatCommands(const vector<Command>& commands)
+    {
+        size_t numCommands = commands.size();
+        vector<Value> list(numCommands);
+        for (size_t iCommand = 0; iCommand < numCommands; iCommand++)
+        {
+            list[iCommand] = formatCommand(commands[iCommand]);
+        }
+        return makeList(list);
+    }
+
+    bool parseEffect(Value& value,
+                     Effect* pEffect)
+    {
+        if (!isList(value))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(value);
+        if (list1.size() < 1)
+        {
+            return false;
+        }
+        if (!parseCommandType(list1[0], &pEffect->m_commandType))
+        {
+            return false;
+        }
+        return true;
+    }
+
+    bool parseShip(Value& value,
+                   Ship* pShip)
+    {
+        if (!isList(value))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(value);
+        if (list1.size() < 2 ||
+            !isList(list1[0]) ||
+            !isList(list1[1]))
+        {
+            return false;
+        }
+        vector<Value> list2 = getList(list1[0]);
+        if (list2.size() < 8 ||
+            !isInt(list2[0]) ||
+            !isInt(list2[1]) ||
+            !isInt(list2[5]) ||
+            !isInt(list2[6]) ||
+            !isInt(list2[7]))
+        {
+            return false;
+        }
+        int64_t iRole = getInt(list2[0]);
+        if (iRole != 0 && iRole != 1)
+        {
+            return false;
+        }
+        pShip->m_role = (Role)iRole;
+        pShip->m_id = getInt(list2[1]);
+        if (pShip->m_id != 0 && pShip->m_id != 1)
+        {
+            return false;
+        }
+        pShip->m_val5 = getInt(list2[5]);
+        pShip->m_val6 = getInt(list2[5]);
+        pShip->m_val7 = getInt(list2[5]);
+        if (!parseVec(list2[2], &pShip->m_pos)) return false;
+        if (!parseVec(list2[3], &pShip->m_vel)) return false;
+        if (!parseParams(list2[4], &pShip->m_params)) return false;
+        vector<Value> list3 = getList(list1[1]);
+        size_t numEffects = list3.size();
+        pShip->m_effects.resize(numEffects);
+        for (size_t iEffect = 0; iEffect < numEffects; iEffect++)
+        {
+            if (!parseEffect(list3[iEffect], &pShip->m_effects[iEffect]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool parseState(Value& response,
+                    State* pState)
+    {
+        if (!isList(response))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(response);
+        if (list1.size() < 4 ||
+            !isList(list1[3]))
+        {
+            return false;
+        }
+
+        vector<Value> list2 = getList(list1[3]);
+        if (list2.size() < 3 ||
+            !isInt(list2[0]) ||
+            !isList(list2[2]))
+        {
+            return false;
+        }
+        pState->m_tick = getInt(list2[0]);
+
+        vector<Value> list3 = getList(list2[2]);
+        size_t numShips = list3.size();
+        if (numShips > 2)
+        {
+            return false;
+        }
+        pState->m_ships.resize(numShips);
+        for (size_t iShip = 0; iShip < numShips; iShip++)
+        {
+            if (!parseShip(list3[iShip], &pState->m_ships[iShip]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool join(int64_t playerKey,
+              Info* pInfo,
+              string* pMsg)
+    {
+        *pInfo = Info();
+
+        Value request = makeList(makeInt(2),
+                                 makeInt(playerKey),
+                                 makeNil());
+        Value response;
+        if (!makeRequest("/aliens/send", request, &response, pMsg))
+        {
+            return false;
+        }
+
+        if (!isSuccess(response))
+        {
+            if (pMsg) *pMsg = "join: protocol error";
+            return false;
+        }
+
+        if (!parseInfo(response, pInfo))
+        {
+            if (pMsg) *pMsg = "join: error parsing info";
+            return false;
+        }
+
+        return true;
+    }
+
+    bool startTutorial(int64_t playerKey,
+                       Info* pInfo,
+                       State* pState,
+                       string* pMsg)
+    {
+        *pInfo = Info();
+        *pState = State();
+
+        Value request = makeList(makeInt(3),
+                                 makeInt(playerKey),
+                                 makeNil());
+        Value response;
+        if (!makeRequest("/aliens/send", request, &response, pMsg))
+        {
+            return false;
+        }
+
+        if (!isSuccess(response))
+        {
+            if (pMsg) *pMsg = "startTutorial: protocol error";
+            return false;
+        }
+
+        if (!parseInfo(response, pInfo))
+        {
+            if (pMsg) *pMsg = "startTutorial: error parsing info";
+            return false;
+        }
+
+        return true;
+    }
+
+    bool start(int64_t playerKey,
+               const Params& params,
+               Info* pInfo,
+               State* pState,
+               string* pMsg)
+    {
+        *pInfo = Info();
+        *pState = State();
+
+        Value request = makeList(makeInt(3),
+                                 makeInt(playerKey),
+                                 makeList(makeInt(params.m_param1),
+                                          makeInt(params.m_param2),
+                                          makeInt(params.m_param3),
+                                          makeInt(params.m_param4)));
+        Value response;
+        if (!makeRequest("/aliens/send", request, &response, pMsg))
+        {
+            return false;
+        }
+
+        if (!isSuccess(response))
+        {
+            if (pMsg) *pMsg = "start: protocol error";
+            return false;
+        }
+
+        if (!parseInfo(response, pInfo))
+        {
+            if (pMsg) *pMsg = "start: error parsing info";
+            return false;
+        }
+
+        return true;
+    }
+
+    bool play(int64_t playerKey,
+              const vector<Command>& commands,
+              Info* pInfo,
+              State* pState,
+              string* pMsg)
+    {
+        *pInfo = Info();
+        *pState = State();
+
+        Value request = makeList(makeInt(4),
+                                 makeInt(playerKey),
+                                 formatCommands(commands));
+        Value response;
+        if (!makeRequest("/aliens/send", request, &response, pMsg))
+        {
+            return false;
+        }
+
+        if (!isSuccess(response))
+        {
+            if (pMsg) *pMsg = "play: protocol error";
+            return false;
+        }
+
+        if (!parseInfo(response, pInfo))
+        {
+            if (pMsg) *pMsg = "play: error parsing info";
             return false;
         }
 

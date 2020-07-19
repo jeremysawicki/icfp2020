@@ -1,13 +1,16 @@
 #include "Common.hpp"
+#include "Protocol.hpp"
+#include "Cleanup.hpp"
 #include "FileUtils.hpp"
 #include "Token.hpp"
 #include "TokenText.hpp"
 #include "SymTable.hpp"
-#include "ParseExpr.hpp"
+#include "ParseValue.hpp"
 #include "Bindings.hpp"
 #include "Value.hpp"
 #include "Eval.hpp"
 #include "PrintValue.hpp"
+#include "FormatValue.hpp"
 
 using std::string;
 using std::vector;
@@ -78,6 +81,15 @@ int main(int argc, char *argv[])
 
     string msg;
 
+    Protocol::init();
+    Cleanup cleanupProtocol([](){ Protocol::cleanup(); });
+
+    if (!Protocol::initAPIKey(false, &msg))
+    {
+        fprintf(stderr, "%s\n", msg.c_str());
+        return 1;
+    }
+
     SymTable symTable;
     Bindings bindings;
 
@@ -136,20 +148,13 @@ int main(int argc, char *argv[])
     //bindings.resize(symTable.size());
 
     Value value;
-    if (!parseExpr(tokens, bindings, value, &msg))
+    if (!parseValue(tokens, bindings, value, &msg))
     {
         fprintf(stderr, "%s\n", msg.c_str());
         return 1;
     }
 
 #if 0
-    if (!eval(value, &msg))
-    {
-        printf("%s\n", msg.c_str());
-        return 1;
-    }
-#endif
-
     if (!printValue(value, true, &msg))
     {
         printf("\n");
@@ -157,6 +162,28 @@ int main(int argc, char *argv[])
         return 1;
     }
     printf("\n");
+#endif
+
+#if 1
+    vector<Token> formattedTokens;
+    if (!formatValue(value, &formattedTokens, &msg))
+    {
+        fprintf(stderr, "%s\n", msg.c_str());
+        return 1;
+    }
+
+    string formattedText;
+    if (!formatTokenText(symTable,
+                         formattedTokens,
+                         &formattedText,
+                         &msg))
+    {
+        fprintf(stderr, "%s\n", msg.c_str());
+        return 1;
+    }
+
+    printf("%s\n", formattedText.c_str());
+#endif
 
     return 0;
 }

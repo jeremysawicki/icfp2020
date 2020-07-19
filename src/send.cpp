@@ -64,10 +64,17 @@ int main(int argc, char *argv[])
         fprintf(stderr, "%s\n", request.c_str());
     }
 
+    string msg;
+
     Protocol::init();
     Cleanup cleanupProtocol([](){ Protocol::cleanup(); });
 
-    string msg;
+    if (!Protocol::initAPIKey(false, &msg))
+    {
+        fprintf(stderr, "%s\n", msg.c_str());
+        return 1;
+    }
+
     string response;
     if (!Protocol::send(request,
                         &response,

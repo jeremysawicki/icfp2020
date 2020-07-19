@@ -1,6 +1,9 @@
 *.o
 *.d
 *.exe
-app
 send
 run
+interact
+test
+create
+bot

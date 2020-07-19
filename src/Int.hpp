@@ -18,6 +18,9 @@ public:
     BasicInt() : m_value() {}
 
     BasicInt(int32_t value) : m_value(value) {}
+#if INT_IMPL_64
+    BasicInt(int64_t value) : m_value(value) {}
+#endif
 
     static bool inc(BasicInt& r,
                     const BasicInt& a,
