@@ -52,6 +52,9 @@ namespace Protocol
               Info* pInfo,
               State* pState,
               std::string* pMsg = nullptr);
+
+    bool getResult(int64_t playerKey,
+                   std::string* pMsg = nullptr);
 }
 
 #endif

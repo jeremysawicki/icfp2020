@@ -366,6 +366,318 @@ namespace Protocol
         return true;
     }
 
+    bool isSuccess(Value& response)
+    {
+        if (!isList(response))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(response);
+        if (list1.size() < 1 ||
+            !isInt(list1[0]) ||
+            getInt(list1[0]) != 1)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool parseRole(Value& value,
+                   Role* pRole)
+    {
+        if (!isInt(value))
+        {
+            return false;
+        }
+        int64_t iRole = getInt(value);
+        if (iRole != 0 && iRole != 1)
+        {
+            return false;
+        }
+        if (pRole) *pRole = (Role)iRole;
+        return true;
+    }
+
+    bool parseInfo(Value& response,
+                   Info* pInfo)
+    {
+        if (!isList(response))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(response);
+        if (list1.size() < 2 ||
+            !isInt(list1[1]))
+        {
+            return false;
+        }
+
+        int64_t iStage = getInt(list1[1]);
+        if (iStage != 0 && iStage != 1 && iStage != 2)
+        {
+            return false;
+        }
+        pInfo->m_stage = (Stage)iStage;
+
+        if (iStage == 2)
+        {
+            return true;
+        }
+
+        if (list1.size() < 3 ||
+            !isList(list1[2]))
+        {
+            return false;
+        }
+
+        vector<Value> list2 = getList(list1[2]);
+        if (list2.size() < 4 ||
+            !isInt(list2[0]) ||
+            !isList(list2[2]) ||
+            !isList(list2[3]))
+        {
+            return false;
+        }
+        pInfo->m_maxTicks = getInt(list2[0]);
+        if (!parseRole(list2[1], &pInfo->m_role))
+        {
+            return false;
+        }
+        vector<Value> list3 = getList(list2[2]);
+        if (list3.size() < 3 ||
+            !isInt(list3[0]) ||
+            !isInt(list3[1]) ||
+            !isInt(list3[2]))
+        {
+            return false;
+        }
+        pInfo->m_maxCost = getInt(list3[0]);
+        pInfo->m_val2 = getInt(list3[1]);
+        pInfo->m_val3 = getInt(list3[2]);
+        vector<Value> list4 = getList(list2[3]);
+        if (list4.size() == 0)
+        {
+            pInfo->m_minRadius = -1;
+            pInfo->m_maxRadius = -1;
+        }
+        else if (list4.size() == 2)
+        {
+            if (!isInt(list4[0]) ||
+                !isInt(list4[1]))
+            {
+                return false;
+            }
+            pInfo->m_minRadius = getInt(list4[0]);
+            pInfo->m_maxRadius = getInt(list4[1]);
+        }
+        else
+        {
+            return false;
+        }
+        return true;
+    }
+
+    bool parseVec(Value& value,
+                  Vec* pVec)
+    {
+        if (!isCons(value))
+        {
+            return false;
+        }
+        Value car = getCar(value);
+        Value cdr = getCdr(value);
+        if (!isInt(car) ||
+            !isInt(cdr))
+        {
+            return false;
+        }
+        pVec->m_x = getInt(car);
+        pVec->m_y = getInt(cdr);
+        return true;
+    }
+
+    Value formatVec(const Vec& vec)
+    {
+        return makeCons(makeInt(vec.m_x), makeInt(vec.m_y));
+    }
+
+    bool parseParams(Value& value,
+                     Params* pParams)
+    {
+        if (!isList(value))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(value);
+        if (list1.size() < 4 ||
+            !isInt(list1[0]) ||
+            !isInt(list1[1]) ||
+            !isInt(list1[2]) ||
+            !isInt(list1[3]))
+        {
+            return false;
+        }
+        pParams->m_param1 = getInt(list1[0]);
+        pParams->m_param2 = getInt(list1[1]);
+        pParams->m_param3 = getInt(list1[2]);
+        pParams->m_param4 = getInt(list1[3]);
+        return true;
+    }
+
+    bool parseCommandType(Value& value,
+                          CommandType* pCommandType)
+    {
+        if (!isInt(value))
+        {
+            return false;
+        }
+        int64_t iCommandType = getInt(value);
+        if (iCommandType != 0 && iCommandType != 1 && iCommandType != 2)
+        {
+            return false;
+        }
+        *pCommandType = (CommandType)iCommandType;
+        return true;
+    }
+
+    Value formatCommand(const Command& command)
+    {
+        if (command.m_commandType == CommandType::Accelerate)
+        {
+            return makeList(makeInt(0),
+                            makeInt(command.m_id),
+                            formatVec(command.m_vec));
+        }
+        if (command.m_commandType == CommandType::Detonate)
+        {
+            return makeList(makeInt(1),
+                            makeInt(command.m_id));
+        }
+        if (command.m_commandType == CommandType::Shoot)
+        {
+            return makeList(makeInt(2),
+                            makeInt(command.m_id),
+                            formatVec(command.m_vec),
+                            makeInt(command.m_val));
+        }
+
+        return makeNil();
+    }
+
+    Value formatCommands(const vector<Command>& commands)
+    {
+        size_t numCommands = commands.size();
+        vector<Value> list(numCommands);
+        for (size_t iCommand = 0; iCommand < numCommands; iCommand++)
+        {
+            list[iCommand] = formatCommand(commands[iCommand]);
+        }
+        return makeList(list);
+    }
+
+    bool parseEffect(Value& value,
+                     Effect* pEffect)
+    {
+        if (!isList(value))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(value);
+        if (list1.size() < 1)
+        {
+            return false;
+        }
+        if (!parseCommandType(list1[0], &pEffect->m_commandType))
+        {
+            return false;
+        }
+        return true;
+    }
+
+    bool parseShip(Value& value,
+                   Ship* pShip)
+    {
+        if (!isList(value))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(value);
+        if (list1.size() < 2 ||
+            !isList(list1[0]) ||
+            !isList(list1[1]))
+        {
+            return false;
+        }
+        vector<Value> list2 = getList(list1[0]);
+        if (list2.size() < 8 ||
+            !isInt(list2[1]) ||
+            !isInt(list2[5]) ||
+            !isInt(list2[6]) ||
+            !isInt(list2[7]))
+        {
+            return false;
+        }
+        if (!parseRole(list2[0], &pShip->m_role))
+        {
+            return false;
+        }
+        pShip->m_id = getInt(list2[1]);
+        pShip->m_val5 = getInt(list2[5]);
+        pShip->m_val6 = getInt(list2[5]);
+        pShip->m_val7 = getInt(list2[5]);
+        if (!parseVec(list2[2], &pShip->m_pos)) return false;
+        if (!parseVec(list2[3], &pShip->m_vel)) return false;
+        if (!parseParams(list2[4], &pShip->m_params)) return false;
+        vector<Value> list3 = getList(list1[1]);
+        size_t numEffects = list3.size();
+        pShip->m_effects.resize(numEffects);
+        for (size_t iEffect = 0; iEffect < numEffects; iEffect++)
+        {
+            if (!parseEffect(list3[iEffect], &pShip->m_effects[iEffect]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool parseState(Value& response,
+                    State* pState)
+    {
+        if (!isList(response))
+        {
+            return false;
+        }
+        vector<Value> list1 = getList(response);
+        if (list1.size() < 4 ||
+            !isList(list1[3]))
+        {
+            return false;
+        }
+
+        vector<Value> list2 = getList(list1[3]);
+        if (list2.size() < 3 ||
+            !isInt(list2[0]) ||
+            !isList(list2[2]))
+        {
+            return false;
+        }
+        pState->m_tick = getInt(list2[0]);
+
+        vector<Value> list3 = getList(list2[2]);
+        size_t numShips = list3.size();
+        pState->m_ships.resize(numShips);
+        for (size_t iShip = 0; iShip < numShips; iShip++)
+        {
+            if (!parseShip(list3[iShip], &pState->m_ships[iShip]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     bool createTutorial(int64_t tutorialNum,
                         Role* pRole,
                         int64_t* pPlayerKey,
@@ -416,13 +728,11 @@ namespace Protocol
             if (pMsg) *pMsg = "createTutorial: invalid response 5";
             return false;
         }
-        int64_t iRole = getInt(list3[0]);
-        if (iRole != 0 && iRole != 1)
+        if (!parseRole(list3[0], pRole))
         {
             if (pMsg) *pMsg = "createTutorial: invalid response 6";
             return false;
         }
-        if (pRole) *pRole = (Role)iRole;
         if (pPlayerKey) *pPlayerKey = getInt(list3[1]);
 
         return true;
@@ -513,294 +823,6 @@ namespace Protocol
         return true;
     }
 
-    bool isSuccess(Value& response)
-    {
-        if (!isList(response))
-        {
-            return false;
-        }
-        vector<Value> list1 = getList(response);
-        if (list1.size() < 1 ||
-            !isInt(list1[0]) ||
-            getInt(list1[0]) != 1)
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    bool parseInfo(Value& response,
-                   Info* pInfo)
-    {
-        if (!isList(response))
-        {
-            return false;
-        }
-        vector<Value> list1 = getList(response);
-        if (list1.size() < 2 ||
-            !isInt(list1[1]))
-        {
-            return false;
-        }
-
-        int64_t iStage = getInt(list1[1]);
-        if (iStage != 0 && iStage != 1 && iStage != 2)
-        {
-            return false;
-        }
-        pInfo->m_stage = (Stage)iStage;
-
-        if (iStage == 2)
-        {
-            return true;
-        }
-
-        if (list1.size() < 3 ||
-            !isList(list1[2]))
-        {
-            return false;
-        }
-
-        vector<Value> list2 = getList(list1[2]);
-        if (list2.size() < 3 ||
-            !isInt(list2[0]) ||
-            !isInt(list2[1]) ||
-            !isList(list2[2]))
-        {
-            return false;
-        }
-        pInfo->m_maxTicks = getInt(list2[0]);
-        pInfo->m_id = getInt(list2[1]);
-        if (pInfo->m_id != 0 && pInfo->m_id != 1 )
-        {
-            return false;
-        }
-        vector<Value> list3 = getList(list2[2]);
-        if (list3.size() < 3 ||
-            !isInt(list3[0]) ||
-            !isInt(list3[1]) ||
-            !isInt(list3[2]))
-        {
-            return false;
-        }
-        pInfo->m_val1 = getInt(list3[0]);
-        pInfo->m_val2 = getInt(list3[1]);
-        pInfo->m_val3 = getInt(list3[2]);
-        return true;
-    }
-
-    bool parseVec(Value& value,
-                  Vec* pVec)
-    {
-        if (!isCons(value))
-        {
-            return false;
-        }
-        Value car = getCar(value);
-        Value cdr = getCdr(value);
-        if (!isInt(car) ||
-            !isInt(cdr))
-        {
-            return false;
-        }
-        pVec->m_x = getInt(car);
-        pVec->m_y = getInt(cdr);
-        return true;
-    }
-
-    Value formatVec(const Vec& vec)
-    {
-        return makeCons(makeInt(vec.m_x), makeInt(vec.m_y));
-    }
-
-    bool parseParams(Value& value,
-                     Params* pParams)
-    {
-        if (!isList(value))
-        {
-            return false;
-        }
-        vector<Value> list1 = getList(value);
-        if (list1.size() < 4 ||
-            !isInt(list1[0]) ||
-            !isInt(list1[1]) ||
-            !isInt(list1[2]) ||
-            !isInt(list1[3]))
-        {
-            return false;
-        }
-        pParams->m_param1 = getInt(list1[0]);
-        pParams->m_param2 = getInt(list1[1]);
-        pParams->m_param3 = getInt(list1[2]);
-        pParams->m_param4 = getInt(list1[3]);
-        return true;
-    }
-
-    bool parseCommandType(Value& value,
-                          CommandType* pCommandType)
-    {
-        if (!isInt(value))
-        {
-            return false;
-        }
-        int64_t iCommandType = getInt(value);
-        if (iCommandType != 0 && iCommandType != 1 && iCommandType != 2)
-        {
-            return false;
-        }
-        *pCommandType = (CommandType)iCommandType;
-        return true;
-    }
-
-    Value formatCommand(const Command& command)
-    {
-        if (command.m_commandType == CommandType::Accelerate)
-        {
-            return makeList(makeInt(0),
-                            makeInt(command.m_id),
-                            formatVec(command.m_vec));
-        }
-        if (command.m_commandType == CommandType::Detonate)
-        {
-            return makeList(makeInt(1),
-                            makeInt(command.m_id));
-        }
-        if (command.m_commandType == CommandType::Shoot)
-        {
-            return makeList(makeInt(0),
-                            makeInt(command.m_id),
-                            formatVec(command.m_vec),
-                            makeInt(command.m_val));
-        }
-
-        return makeNil();
-    }
-
-    Value formatCommands(const vector<Command>& commands)
-    {
-        size_t numCommands = commands.size();
-        vector<Value> list(numCommands);
-        for (size_t iCommand = 0; iCommand < numCommands; iCommand++)
-        {
-            list[iCommand] = formatCommand(commands[iCommand]);
-        }
-        return makeList(list);
-    }
-
-    bool parseEffect(Value& value,
-                     Effect* pEffect)
-    {
-        if (!isList(value))
-        {
-            return false;
-        }
-        vector<Value> list1 = getList(value);
-        if (list1.size() < 1)
-        {
-            return false;
-        }
-        if (!parseCommandType(list1[0], &pEffect->m_commandType))
-        {
-            return false;
-        }
-        return true;
-    }
-
-    bool parseShip(Value& value,
-                   Ship* pShip)
-    {
-        if (!isList(value))
-        {
-            return false;
-        }
-        vector<Value> list1 = getList(value);
-        if (list1.size() < 2 ||
-            !isList(list1[0]) ||
-            !isList(list1[1]))
-        {
-            return false;
-        }
-        vector<Value> list2 = getList(list1[0]);
-        if (list2.size() < 8 ||
-            !isInt(list2[0]) ||
-            !isInt(list2[1]) ||
-            !isInt(list2[5]) ||
-            !isInt(list2[6]) ||
-            !isInt(list2[7]))
-        {
-            return false;
-        }
-        int64_t iRole = getInt(list2[0]);
-        if (iRole != 0 && iRole != 1)
-        {
-            return false;
-        }
-        pShip->m_role = (Role)iRole;
-        pShip->m_id = getInt(list2[1]);
-        if (pShip->m_id != 0 && pShip->m_id != 1)
-        {
-            return false;
-        }
-        pShip->m_val5 = getInt(list2[5]);
-        pShip->m_val6 = getInt(list2[5]);
-        pShip->m_val7 = getInt(list2[5]);
-        if (!parseVec(list2[2], &pShip->m_pos)) return false;
-        if (!parseVec(list2[3], &pShip->m_vel)) return false;
-        if (!parseParams(list2[4], &pShip->m_params)) return false;
-        vector<Value> list3 = getList(list1[1]);
-        size_t numEffects = list3.size();
-        pShip->m_effects.resize(numEffects);
-        for (size_t iEffect = 0; iEffect < numEffects; iEffect++)
-        {
-            if (!parseEffect(list3[iEffect], &pShip->m_effects[iEffect]))
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    bool parseState(Value& response,
-                    State* pState)
-    {
-        if (!isList(response))
-        {
-            return false;
-        }
-        vector<Value> list1 = getList(response);
-        if (list1.size() < 4 ||
-            !isList(list1[3]))
-        {
-            return false;
-        }
-
-        vector<Value> list2 = getList(list1[3]);
-        if (list2.size() < 3 ||
-            !isInt(list2[0]) ||
-            !isList(list2[2]))
-        {
-            return false;
-        }
-        pState->m_tick = getInt(list2[0]);
-
-        vector<Value> list3 = getList(list2[2]);
-        size_t numShips = list3.size();
-        if (numShips > 2)
-        {
-            return false;
-        }
-        pState->m_ships.resize(numShips);
-        for (size_t iShip = 0; iShip < numShips; iShip++)
-        {
-            if (!parseShip(list3[iShip], &pState->m_ships[iShip]))
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
     bool join(int64_t playerKey,
               Info* pInfo,
               string* pMsg)
@@ -860,6 +882,12 @@ namespace Protocol
             return false;
         }
 
+        if (!parseState(response, pState))
+        {
+            if (pMsg) *pMsg = "startTutorial: error parsing state";
+            return false;
+        }
+
         return true;
     }
 
@@ -896,6 +924,12 @@ namespace Protocol
             return false;
         }
 
+        if (!parseState(response, pState))
+        {
+            if (pMsg) *pMsg = "start: error parsing state";
+            return false;
+        }
+
         return true;
     }
 
@@ -926,6 +960,32 @@ namespace Protocol
         if (!parseInfo(response, pInfo))
         {
             if (pMsg) *pMsg = "play: error parsing info";
+            return false;
+        }
+
+        if (!parseState(response, pState))
+        {
+            if (pMsg) *pMsg = "play: error parsing state";
+            return false;
+        }
+
+        return true;
+    }
+
+    bool getResult(int64_t playerKey,
+                   string* pMsg)
+    {
+        Value request = makeList(makeInt(5),
+                                 makeInt(playerKey));
+        Value response;
+        if (!makeRequest("/aliens/send", request, &response, pMsg))
+        {
+            return false;
+        }
+
+        if (!isSuccess(response))
+        {
+            if (pMsg) *pMsg = "getResult: protocol error";
             return false;
         }
 

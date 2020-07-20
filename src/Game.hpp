@@ -19,6 +19,20 @@ enum class Stage : uint32_t
 class Vec
 {
 public:
+    bool operator==(const Vec& other) const
+    {
+        return
+            m_x == other.m_x &&
+            m_y == other.m_y;
+    }
+
+    bool operator!=(const Vec& other) const
+    {
+        return
+            m_x != other.m_x ||
+            m_y != other.m_y;
+    }
+
     int64_t m_x = 0;
     int64_t m_y = 0;
 };
@@ -53,10 +67,12 @@ class Info
 public:
     Stage m_stage = Stage::Before;
     int64_t m_maxTicks = 0;
-    int64_t m_id = 0;
-    int64_t m_val1 = 0;
+    Role m_role = Role::Attacker;
+    int64_t m_maxCost = 0;
     int64_t m_val2 = 0;
     int64_t m_val3 = 0;
+    int64_t m_minRadius = 0;
+    int64_t m_maxRadius = 0;
 };
 
 class Effect

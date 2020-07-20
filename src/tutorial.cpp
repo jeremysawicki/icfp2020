@@ -14,25 +14,23 @@ const char* defaultBotName = "orbit";
 
 void usage(FILE* f)
 {
-    fprintf(f, "Usage: bot [<options>] <player key>\n");
+    fprintf(f, "Usage: bot [<options>] <tutorial number>\n");
+    fprintf(f, "  <tutorial number>\n");
+    fprintf(f, "        Tutorial number (1-13)\n");
     fprintf(f, "Options:\n");
     fprintf(f, "  -h    Print usage information and exit\n");
     fprintf(f, "  -b <bot>\n");
     fprintf(f, "        Use the specified bot (default: %s)\n", defaultBotName);
-    fprintf(f, "  -d <url>\n");
-    fprintf(f, "        Run in docker mode with the supplied URL\n");
 }
 
 int main(int argc, char *argv[])
 {
     bool gotBotName = false;
-    bool gotUrl = false;
-    bool gotPlayerKey = false;
+    bool gotTutorialNum = false;
 
     bool help = false;
     string botName;
-    string url;
-    int64_t playerKey;
+    int64_t tutorialNum;
 
     int iArg = 1;
     while (iArg < argc)
@@ -54,25 +52,14 @@ int main(int argc, char *argv[])
             botName = strArg;
             gotBotName = true;
         }
-        else if (strArg == "-d")
+        else if (!gotTutorialNum)
         {
-            if (iArg >= argc)
+            if (!parseI64(strArg, &tutorialNum))
             {
                 usage(stderr);
                 return 1;
             }
-            strArg = argv[iArg++];
-            url = strArg;
-            gotUrl = true;
-        }
-        else if (!gotPlayerKey)
-        {
-            if (!parseI64(strArg, &playerKey))
-            {
-                usage(stderr);
-                return 1;
-            }
-            gotPlayerKey = true;
+            gotTutorialNum = true;
         }
         else
         {
@@ -87,7 +74,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    if (!gotPlayerKey)
+    if (!gotTutorialNum)
     {
         usage(stderr);
         return 1;
@@ -105,33 +92,24 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    if (gotUrl)
-    {
-        printf("url = %s\n", url.c_str());
-    }
-    printf("player key = %" PRIi64 "\n", playerKey);
-
     string msg;
 
     Protocol::init();
     Cleanup cleanupProtocol([](){ Protocol::cleanup(); });
 
     bool verbose = true;
-    if (gotUrl)
+    if (!Protocol::initAPIKey(verbose, &msg))
     {
-        if (!Protocol::initDocker(url, verbose, &msg))
-        {
-            fprintf(stderr, "%s\n", msg.c_str());
-            return 1;
-        }
+        fprintf(stderr, "%s\n", msg.c_str());
+        return 1;
     }
-    else
+
+    Role role;
+    int64_t playerKey;
+    if (!Protocol::createTutorial(tutorialNum, &role, &playerKey, &msg))
     {
-        if (!Protocol::initAPIKey(verbose, &msg))
-        {
-            fprintf(stderr, "%s\n", msg.c_str());
-            return 1;
-        }
+        fprintf(stderr, "%s\n", msg.c_str());
+        return 1;
     }
 
     Info info;
@@ -146,11 +124,8 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    Params params;
-    pBot->getParams(info, &params);
-
     State state;
-    if (!Protocol::start(playerKey, params, &info, &state, &msg))
+    if (!Protocol::startTutorial(playerKey, &info, &state, &msg))
     {
         fprintf(stderr, "%s\n", msg.c_str());
         return 1;

@@ -9,9 +9,6 @@ class PassBot : public Bot
 public:
     PassBot();
     virtual ~PassBot() override;
-
-    virtual void getParams(const Info& info,
-                           Params* pParams) override;
 };
 
 #endif

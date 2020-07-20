@@ -83,8 +83,8 @@ LDLIBS_linux_test +=
 LDLIBS_interact += $(LDLIBS_GRAPHICS)
 UTILOBJS = StringUtils.o FileUtils.o TimeUtils.o ParseUtils.o
 STDOBJS = TokenText.o ParseValue.o Bindings.o Eval.o Modem.o Heap.o PrintValue.o FormatValue.o Protocol.o
-BOTOBJS = Bot.o BotFactory.o PassBot.o
-ALLPROGS = send run interact test create bot
+BOTOBJS = Bot.o BotFactory.o PassBot.o OrbitBot.o ShootBot.o Gravity.o
+ALLPROGS = send run interact test create bot tutorial
 ALLPROGS += $(ALLPROGS_$(PLATFORM))
 ALLPROGS_linux +=
 
@@ -99,6 +99,7 @@ interact$(EXE): interact.o $(UTILOBJS) $(STDOBJS) Graphics.o
 test$(EXE): test.o $(UTILOBJS) $(STDOBJS)
 create$(EXE): create.o $(UTILOBJS) $(STDOBJS)
 bot$(EXE): bot.o $(UTILOBJS) $(STDOBJS) $(BOTOBJS)
+tutorial$(EXE): tutorial.o $(UTILOBJS) $(STDOBJS) $(BOTOBJS)
 
 .PHONY: clean
 clean:
