@@ -91,7 +91,7 @@ void ShootBot::getCommands(const Info& info,
             shootCommand.m_commandType = CommandType::Shoot;
             shootCommand.m_id = self.m_id;
             shootCommand.m_vec.m_x = otherX;
-            shootCommand.m_vec.m_y = other.m_pos.m_y + other.m_vel.m_y;
+            shootCommand.m_vec.m_y = otherY;
             shootCommand.m_val = val;
 
             break;
