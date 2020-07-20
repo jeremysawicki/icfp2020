@@ -92,7 +92,7 @@ namespace Gravity
             return;
         }
 
-        auto check = [&]() -> int64_t
+        auto check = [&](const vector<Vec>& accels) -> int64_t
         {
             Vec pos = startPos;
             Vec vel = startVel;
@@ -121,9 +121,11 @@ namespace Gravity
         int64_t neededFuel = 0;
         int64_t curTicks = 0;
 
+        vector<vector<Vec>> oldAccels;
+
         while (true)
         {
-            curTicks = check();
+            curTicks = check(accels);
             printf("Ticks: %" PRIi64 " of %" PRIi64 "  Fuel: %" PRIi64 " of %" PRIi64 "\n", curTicks, maxTicks, neededFuel, maxFuel);
             if (curTicks == maxTicks)
             {
@@ -134,59 +136,103 @@ namespace Gravity
                 break;
             }
 
+            oldAccels.push_back(accels);
+
             int64_t bestTick = -1;
             int64_t bestDir = -1;
+            int64_t bestBurst = -1;
             int64_t bestTicks = curTicks;
             uint32_t bestCount = 0;
 
-            for (int64_t tick = startTick; tick < curTicks; tick++)
+            for (int64_t burst = 1; burst <= 8; burst *= 2)
             {
-                if (accels[tick] != Vec())
+                if (oldAccels.size() < (size_t)burst)
                 {
-                    continue;
+                    break;
                 }
-                Vec oldAccel = accels[tick];
-                for (int64_t dir = 0; dir < 8; dir++)
+
+                auto& curOldAccels = oldAccels[oldAccels.size() - burst];
+                auto curAccels = curOldAccels;
+
+                for (int64_t tick = startTick; tick < curTicks; tick++)
                 {
-                    accels[tick] = dirs[dir];
-                    int64_t tmpTicks = check();
-                    if (tmpTicks <= curTicks)
+                    /*
+                    if (accels[tick] != Vec())
                     {
                         continue;
                     }
-                    if (tmpTicks > bestTicks)
+                    */
+                    //Vec oldAccel = accels[tick];
+                    for (int64_t dir = 0; dir < 8; dir++)
                     {
-                        bestTick = tick;
-                        bestDir = dir;
-                        bestTicks = tmpTicks;
-                        bestCount = 1;
-                    }
-                    else if (tmpTicks == bestTicks)
-                    {
-                        bestCount++;
-                        if (gen() % bestCount == 0)
+                        for (int64_t burstTick = tick; burstTick < tick + burst && burstTick < maxTicks; burstTick++)
+                        {
+                            curAccels[burstTick] = dirs[dir];
+                        }
+                        //accels[tick] = dirs[dir];
+                        int64_t tmpTicks = check(curAccels);
+                        if (tmpTicks <= curTicks)
+                        {
+                            continue;
+                        }
+                        if (tmpTicks > bestTicks)
                         {
                             bestTick = tick;
                             bestDir = dir;
+                            bestBurst = burst;
                             bestTicks = tmpTicks;
+                            bestCount = 1;
+                        }
+                        else if (tmpTicks == bestTicks)
+                        {
+                            bestCount++;
+                            if (gen() % bestCount == 0)
+                            {
+                                bestTick = tick;
+                                bestDir = dir;
+                                bestBurst = burst;
+                                bestTicks = tmpTicks;
+                            }
                         }
                     }
+
+                    for (int64_t burstTick = tick; burstTick < tick + burst && burstTick < maxTicks; burstTick++)
+                    {
+                        curAccels[burstTick] = curOldAccels[burstTick];
+                    }
+                    //accels[tick] = oldAccel;
                 }
-                accels[tick] = oldAccel;
             }
+            printf("bestTicks = %" PRIi64 ", bestBurst = %" PRIi64 "\n", bestTicks, bestBurst);
             if (bestTicks == curTicks)
             {
                 printf("No improvement\n");
                 break;
             }
-            if (accels[bestTick] != Vec())
+            auto& bestOldAccels = oldAccels[oldAccels.size() - bestBurst];
+            for (int64_t tick = startTick; tick < maxTicks; tick++)
             {
-                neededFuel--;
+                if (accels[tick] != Vec())
+                {
+                    neededFuel--;
+                }
+                accels[tick] = bestOldAccels[tick];
+                if (accels[tick] != Vec())
+                {
+                    neededFuel++;
+                }
             }
-            accels[bestTick] = dirs[bestDir];
-            if (accels[bestTick] != Vec())
+            for (int64_t burstTick = bestTick; burstTick < bestTick + bestBurst && burstTick < maxTicks; burstTick++)
             {
-                neededFuel++;
+                if (accels[burstTick] != Vec())
+                {
+                    neededFuel--;
+                }
+                accels[burstTick] = dirs[bestDir];
+                if (accels[burstTick] != Vec())
+                {
+                    neededFuel++;
+                }
             }
         }
 
