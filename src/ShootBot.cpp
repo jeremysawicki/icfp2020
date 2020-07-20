@@ -19,14 +19,48 @@ void ShootBot::getParams(const Info& info,
     int64_t ships = 1; //std::max(cost/(4*2), (int64_t)1);
     cost -= ships * 2;
 
-    int64_t fuel = cost/(20*1);
+    int64_t fuel = 0;
+    int64_t cooling = 0;
+    int64_t guns = 0;
+
+    fuel = cost/(16*1);
     cost -= fuel * 1;
 
-    int64_t cooling = cost/(4*12);
-    cost -= cooling * 12;
+    if (info.m_val3 == 64)
+    {
+        while (cooling < 8 && cost >= 12)
+        {
+            cooling += 1;
+            cost -= 1 * 12;
+        }
 
-    int64_t guns = cost/(1*4);
-    cost -= guns * 4;
+        while (cost > 0)
+        {
+            if (guns < info.m_val3 + cooling && cost >= 4)
+            {
+                guns += 1;
+                cost -= 1 * 4;
+            }
+            else if (cost >= 12)
+            {
+                cooling += 1;
+                cost -= 1 * 12;
+            }
+            else
+            {
+                fuel += 1;
+                cost -= 1 * 1;
+            }
+        }
+    }
+    else
+    {
+        cooling = cost/(4*12);
+        cost -= cooling * 12;
+
+        guns = cost/(1*4);
+        cost -= guns * 4;
+    }
 
     *pParams = {fuel, guns, cooling, ships};
 }
@@ -45,13 +79,20 @@ void ShootBot::getCommands(const Info& info,
 
         //if (role != Role::Attacker) continue;
 
-        if (self.m_params.m_cooling > 0 && self.m_heat > 0)
+        if (self.m_params.m_cooling > 0)
         {
-            continue;
+            if (self.m_heat * 3 >= self.m_maxHeat)
+            {
+                continue;
+            }
         }
 
         int64_t guns = self.m_params.m_guns;
         int64_t limit = self.m_maxHeat - self.m_heat + self.m_params.m_cooling;
+        if (!pCommands->empty())
+        {
+            limit -= 8;
+        }
         int64_t val = std::min(guns, limit);
 
         if (val <= 0)
