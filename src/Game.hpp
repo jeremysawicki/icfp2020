@@ -40,10 +40,10 @@ public:
 class Params
 {
 public:
-    int64_t m_param1 = 0;
-    int64_t m_param2 = 0;
-    int64_t m_param3 = 0;
-    int64_t m_param4 = 0;
+    int64_t m_fuel = 0;
+    int64_t m_guns = 0;
+    int64_t m_cooling = 0;
+    int64_t m_ships = 0;
 };
 
 enum class CommandType : uint32_t
@@ -89,8 +89,8 @@ public:
     Vec m_pos;
     Vec m_vel;
     Params m_params;
-    int64_t m_val5 = 0;
-    int64_t m_val6 = 0;
+    int64_t m_heat = 0;
+    int64_t m_maxHeat = 0;
     int64_t m_val7 = 0;
     std::vector<Effect> m_effects;
 };

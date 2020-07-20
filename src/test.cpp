@@ -4,10 +4,11 @@
 #include "Game.hpp"
 
 using std::string;
+using std::vector;
 
 bool test(string* pMsg)
 {
-    int64_t tutorialNum = 2;
+    int64_t tutorialNum = 6;
     Role role;
     int64_t playerKey;
     if (!Protocol::createTutorial(tutorialNum, &role, &playerKey, pMsg))
@@ -23,6 +24,40 @@ bool test(string* pMsg)
 
     State state;
     if (!Protocol::startTutorial(playerKey, &info, &state, pMsg))
+    {
+        return false;
+    }
+
+    return true;
+    vector<Command> commands;
+    auto& command = commands.emplace_back();
+    command.m_commandType = CommandType::Shoot;
+    command.m_id = 0;
+    command.m_vec = {48, 0};
+    command.m_val = 64+11;
+
+    if (!Protocol::play(playerKey, commands, &info, &state, pMsg))
+    {
+        return false;
+    }
+
+    if (!Protocol::play(playerKey, commands, &info, &state, pMsg))
+    {
+        return false;
+    }
+
+    if (!Protocol::play(playerKey, commands, &info, &state, pMsg))
+    {
+        return false;
+    }
+
+    command.m_val = 44;
+    if (!Protocol::play(playerKey, commands, &info, &state, pMsg))
+    {
+        return false;
+    }
+
+    if (!Protocol::getResult(playerKey, pMsg))
     {
         return false;
     }

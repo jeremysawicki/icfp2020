@@ -17,6 +17,7 @@ namespace Gravity
                int64_t maxRadius,
                Vec startPos,
                Vec startVel,
+               int64_t startTick,
                int64_t maxTicks,
                int64_t maxFuel,
                std::vector<Vec>* pAccels);

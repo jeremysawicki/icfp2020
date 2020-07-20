@@ -10,7 +10,7 @@ using std::string;
 using std::vector;
 using std::unique_ptr;
 
-const char* defaultBotName = "orbit";
+const char* defaultBotName = "shoot";
 
 void usage(FILE* f)
 {

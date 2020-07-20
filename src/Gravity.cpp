@@ -1,4 +1,8 @@
 #include "Gravity.hpp"
+#include "Xoshiro.hpp"
+#include <random>
+
+typedef Xoshiro128StarStar Gen;
 
 using std::vector;
 
@@ -58,10 +62,14 @@ namespace Gravity
                int64_t maxRadius,
                Vec startPos,
                Vec startVel,
+               int64_t startTick,
                int64_t maxTicks,
                int64_t maxFuel,
                vector<Vec>* pAccels)
     {
+        std::seed_seq seq{12345, 1};
+        Gen gen(seq);
+
         vector<Vec> accels(maxTicks);
 
         auto isBad = [&](const Vec& pos) -> bool
@@ -88,7 +96,7 @@ namespace Gravity
         {
             Vec pos = startPos;
             Vec vel = startVel;
-            for (int64_t tick = 0; tick < maxTicks; tick++)
+            for (int64_t tick = startTick; tick < maxTicks; tick++)
             {
                 step(true, pos, vel, accels[tick], &pos, &vel);
                 if (isBad(pos))
@@ -129,8 +137,9 @@ namespace Gravity
             int64_t bestTick = -1;
             int64_t bestDir = -1;
             int64_t bestTicks = curTicks;
+            uint32_t bestCount = 0;
 
-            for (int64_t tick = 0; tick < curTicks; tick++)
+            for (int64_t tick = startTick; tick < curTicks; tick++)
             {
                 if (accels[tick] != Vec())
                 {
@@ -141,11 +150,26 @@ namespace Gravity
                 {
                     accels[tick] = dirs[dir];
                     int64_t tmpTicks = check();
+                    if (tmpTicks <= curTicks)
+                    {
+                        continue;
+                    }
                     if (tmpTicks > bestTicks)
                     {
                         bestTick = tick;
                         bestDir = dir;
                         bestTicks = tmpTicks;
+                        bestCount = 1;
+                    }
+                    else if (tmpTicks == bestTicks)
+                    {
+                        bestCount++;
+                        if (gen() % bestCount == 0)
+                        {
+                            bestTick = tick;
+                            bestDir = dir;
+                            bestTicks = tmpTicks;
+                        }
                     }
                 }
                 accels[tick] = oldAccel;

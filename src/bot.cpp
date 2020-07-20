@@ -10,7 +10,7 @@ using std::string;
 using std::vector;
 using std::unique_ptr;
 
-const char* defaultBotName = "orbit";
+const char* defaultBotName = "shoot";
 
 void usage(FILE* f)
 {
@@ -168,10 +168,13 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (!Protocol::getResult(playerKey, &msg))
+    if (!gotUrl)
     {
-        fprintf(stderr, "%s\n", msg.c_str());
-        return 1;
+        if (!Protocol::getResult(playerKey, &msg))
+        {
+            fprintf(stderr, "%s\n", msg.c_str());
+            return 1;
+        }
     }
 
     return 0;

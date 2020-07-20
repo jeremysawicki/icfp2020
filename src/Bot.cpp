@@ -15,16 +15,20 @@ void Bot::getParams(const Info& info,
 {
     // costs: 1, 4, 12, 2
     int64_t cost = info.m_maxCost;
-    int64_t param4 = std::max(cost/(4*2), (int64_t)1);
-    cost -= param4 * 2;
-    int64_t param3 = cost/(3*12);
-    cost -= param3 * 12;
-    int64_t param2 = cost/(2*4);
-    cost -= param2 * 4;
-    int64_t param1 = cost/(1*1);
-    cost -= param1 * 1;
 
-    *pParams = {param1, param2, param3, param4};
+    int64_t ships = 1; //std::max(cost/(4*2), (int64_t)1);
+    cost -= ships * 2;
+
+    int64_t cooling = cost/(10*12);
+    cost -= cooling * 12;
+
+    int64_t guns = cost/(9*4);
+    cost -= guns * 4;
+
+    int64_t fuel = cost/(1*1);
+    cost -= fuel * 1;
+
+    *pParams = {fuel, guns, cooling, ships};
 }
 
 void Bot::getCommands(const Info& info,

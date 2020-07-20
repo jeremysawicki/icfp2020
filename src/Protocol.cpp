@@ -518,10 +518,10 @@ namespace Protocol
         {
             return false;
         }
-        pParams->m_param1 = getInt(list1[0]);
-        pParams->m_param2 = getInt(list1[1]);
-        pParams->m_param3 = getInt(list1[2]);
-        pParams->m_param4 = getInt(list1[3]);
+        pParams->m_fuel = getInt(list1[0]);
+        pParams->m_guns = getInt(list1[1]);
+        pParams->m_cooling = getInt(list1[2]);
+        pParams->m_ships = getInt(list1[3]);
         return true;
     }
 
@@ -623,9 +623,9 @@ namespace Protocol
             return false;
         }
         pShip->m_id = getInt(list2[1]);
-        pShip->m_val5 = getInt(list2[5]);
-        pShip->m_val6 = getInt(list2[5]);
-        pShip->m_val7 = getInt(list2[5]);
+        pShip->m_heat = getInt(list2[5]);
+        pShip->m_maxHeat = getInt(list2[6]);
+        pShip->m_val7 = getInt(list2[7]);
         if (!parseVec(list2[2], &pShip->m_pos)) return false;
         if (!parseVec(list2[3], &pShip->m_vel)) return false;
         if (!parseParams(list2[4], &pShip->m_params)) return false;
@@ -902,10 +902,10 @@ namespace Protocol
 
         Value request = makeList(makeInt(3),
                                  makeInt(playerKey),
-                                 makeList(makeInt(params.m_param1),
-                                          makeInt(params.m_param2),
-                                          makeInt(params.m_param3),
-                                          makeInt(params.m_param4)));
+                                 makeList(makeInt(params.m_fuel),
+                                          makeInt(params.m_guns),
+                                          makeInt(params.m_cooling),
+                                          makeInt(params.m_ships)));
         Value response;
         if (!makeRequest("/aliens/send", request, &response, pMsg))
         {
