@@ -19,10 +19,10 @@ void ShootBot::getParams(const Info& info,
     int64_t ships = 1; //std::max(cost/(4*2), (int64_t)1);
     cost -= ships * 2;
 
-    int64_t fuel = cost/(10*1);
+    int64_t fuel = cost/(20*1);
     cost -= fuel * 1;
 
-    int64_t cooling = cost/(2*12);
+    int64_t cooling = cost/(4*12);
     cost -= cooling * 12;
 
     int64_t guns = cost/(1*4);

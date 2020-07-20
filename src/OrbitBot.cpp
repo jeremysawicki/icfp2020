@@ -18,13 +18,29 @@ void OrbitBot::getCommands(const Info& info,
     Role role = info.m_role;
     bool haveGravity = info.m_minRadius != -1;
 
+    int64_t maxShipId = 0;
+    for (auto& ship : state.m_ships)
+    {
+        maxShipId = std::max(maxShipId, ship.m_id);
+    }
+    size_t numShips = (size_t)(maxShipId + 1);
+
     //if (state.m_tick == 0)
     {
-        m_expectedPos.resize(state.m_ships.size());
-        m_expectedVel.resize(state.m_ships.size());
+        if (m_expectedPos.size() < numShips)
+        {
+            m_expectedPos.resize(numShips);
+        }
+        if (m_expectedVel.size() < numShips)
+        {
+            m_expectedVel.resize(numShips);
+        }
         if (haveGravity)
         {
-            m_accels.resize(state.m_ships.size());
+            if (m_accels.size() < numShips)
+            {
+                m_accels.resize(numShips);
+            }
         }
     }
 
