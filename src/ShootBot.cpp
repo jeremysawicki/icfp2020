@@ -26,7 +26,7 @@ void ShootBot::getParams(const Info& info,
     fuel = cost/(16*1);
     cost -= fuel * 1;
 
-    if (info.m_val3 == 64)
+    if (true) //(info.m_maxHeat == 64)
     {
         while (cooling < 8 && cost >= 12)
         {
@@ -36,7 +36,7 @@ void ShootBot::getParams(const Info& info,
 
         while (cost > 0)
         {
-            if (guns < info.m_val3 + cooling && cost >= 4)
+            if (guns < info.m_maxHeat + cooling && cost >= 4)
             {
                 guns += 1;
                 cost -= 1 * 4;

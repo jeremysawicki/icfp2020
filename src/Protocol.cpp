@@ -453,8 +453,8 @@ namespace Protocol
             return false;
         }
         pInfo->m_maxCost = getInt(list3[0]);
-        pInfo->m_val2 = getInt(list3[1]);
-        pInfo->m_val3 = getInt(list3[2]);
+        pInfo->m_maxAccel = getInt(list3[1]);
+        pInfo->m_maxHeat = getInt(list3[2]);
         vector<Value> list4 = getList(list2[3]);
         if (list4.size() == 0)
         {
@@ -629,7 +629,7 @@ namespace Protocol
         pShip->m_id = getInt(list2[1]);
         pShip->m_heat = getInt(list2[5]);
         pShip->m_maxHeat = getInt(list2[6]);
-        pShip->m_val7 = getInt(list2[7]);
+        pShip->m_maxAccel = getInt(list2[7]);
         if (!parseVec(list2[2], &pShip->m_pos)) return false;
         if (!parseVec(list2[3], &pShip->m_vel)) return false;
         if (!parseParams(list2[4], &pShip->m_params)) return false;
@@ -835,7 +835,7 @@ namespace Protocol
 
         Value request = makeList(makeInt(2),
                                  makeInt(playerKey),
-                                 makeNil());
+                                 makeList(makeInt(192496425430)));
         Value response;
         if (!makeRequest("/aliens/send", request, &response, pMsg))
         {

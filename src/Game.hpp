@@ -70,8 +70,8 @@ public:
     int64_t m_maxTicks = 0;
     Role m_role = Role::Attacker;
     int64_t m_maxCost = 0;
-    int64_t m_val2 = 0;
-    int64_t m_val3 = 0;
+    int64_t m_maxAccel = 0;
+    int64_t m_maxHeat = 0;
     int64_t m_minRadius = 0;
     int64_t m_maxRadius = 0;
 };
@@ -92,7 +92,7 @@ public:
     Params m_params;
     int64_t m_heat = 0;
     int64_t m_maxHeat = 0;
-    int64_t m_val7 = 0;
+    int64_t m_maxAccel = 0;
     std::vector<Effect> m_effects;
 };
 
