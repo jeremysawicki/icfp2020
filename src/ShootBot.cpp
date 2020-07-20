@@ -79,9 +79,9 @@ void ShootBot::getCommands(const Info& info,
                 continue;
             }
 
-            if (absDistX > 2 &&
-                absDistY > 2 &&
-                abs(absDistX - absDistY) > 2)
+            if (absDistX > 8 &&
+                absDistY > 8 &&
+                abs(absDistX - absDistY) > 8)
             {
                 // Not aligned
                 continue;
