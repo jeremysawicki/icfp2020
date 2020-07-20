@@ -533,9 +533,13 @@ namespace Protocol
             return false;
         }
         int64_t iCommandType = getInt(value);
-        if (iCommandType != 0 && iCommandType != 1 && iCommandType != 2)
+        if (iCommandType != 0 &&
+            iCommandType != 1 &&
+            iCommandType != 2 &&
+            iCommandType != 3)
         {
-            return false;
+            // To be safe
+            //return false;
         }
         *pCommandType = (CommandType)iCommandType;
         return true;

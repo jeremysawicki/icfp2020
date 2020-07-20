@@ -50,7 +50,8 @@ enum class CommandType : uint32_t
 {
     Accelerate = 0,
     Detonate = 1,
-    Shoot = 2
+    Shoot = 2,
+    Clone = 3
 };
 
 class Command
