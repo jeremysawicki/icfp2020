@@ -61,6 +61,7 @@ public:
     int64_t m_id = 0;
     Vec m_vec;
     int64_t m_val = 0;
+    Params m_params;
 };
 
 class Info

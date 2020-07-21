@@ -565,6 +565,15 @@ namespace Protocol
                             formatVec(command.m_vec),
                             makeInt(command.m_val));
         }
+        if (command.m_commandType == CommandType::Clone)
+        {
+            return makeList(makeInt(3),
+                            makeInt(command.m_id),
+                            makeList(makeInt(command.m_params.m_fuel),
+                                     makeInt(command.m_params.m_guns),
+                                     makeInt(command.m_params.m_cooling),
+                                     makeInt(command.m_params.m_ships)));
+        }
 
         return makeNil();
     }

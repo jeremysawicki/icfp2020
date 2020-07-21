@@ -67,7 +67,7 @@ namespace Gravity
                int64_t maxFuel,
                vector<Vec>* pAccels)
     {
-        std::seed_seq seq{12345, 1};
+        std::seed_seq seq{(uint32_t)12345, (uint32_t)startTick};
         Gen gen(seq);
 
         vector<Vec> accels(maxTicks);

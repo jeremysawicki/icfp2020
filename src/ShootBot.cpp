@@ -89,9 +89,14 @@ void ShootBot::getCommands(const Info& info,
 
         int64_t guns = self.m_params.m_guns;
         int64_t limit = self.m_maxHeat - self.m_heat + self.m_params.m_cooling;
-        if (!pCommands->empty())
+        for (auto& command : *pCommands)
         {
-            limit -= 8;
+            if (command.m_commandType == CommandType::Accelerate &&
+                command.m_id == self.m_id)
+            {
+                limit -= 8;
+                break;
+            }
         }
         int64_t val = std::min(guns, limit);
 
