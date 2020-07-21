@@ -21,6 +21,13 @@ void usage(FILE* f)
     fprintf(f, "        Use the specified bot (default: %s)\n", defaultBotName);
     fprintf(f, "  -d <url>\n");
     fprintf(f, "        Run in docker mode with the supplied URL\n");
+    fprintf(f, "Bots:\n");
+    vector<string> nameList = BotFactory::getList();
+    for (auto& name : nameList)
+    {
+        fprintf(f, "  %s\n", name.c_str());
+    }
+    std::vector<std::string> getList();
 }
 
 int main(int argc, char *argv[])

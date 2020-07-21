@@ -14,13 +14,20 @@ const char* defaultBotName = "shoot";
 
 void usage(FILE* f)
 {
-    fprintf(f, "Usage: bot [<options>] <tutorial number>\n");
+    fprintf(f, "Usage: tutorial [<options>] <tutorial number>\n");
     fprintf(f, "  <tutorial number>\n");
     fprintf(f, "        Tutorial number (1-13)\n");
     fprintf(f, "Options:\n");
     fprintf(f, "  -h    Print usage information and exit\n");
     fprintf(f, "  -b <bot>\n");
     fprintf(f, "        Use the specified bot (default: %s)\n", defaultBotName);
+    fprintf(f, "Bots:\n");
+    vector<string> nameList = BotFactory::getList();
+    for (auto& name : nameList)
+    {
+        fprintf(f, "  %s\n", name.c_str());
+    }
+    std::vector<std::string> getList();
 }
 
 int main(int argc, char *argv[])
